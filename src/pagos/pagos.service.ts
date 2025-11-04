@@ -101,10 +101,6 @@ export class PagosService {
   ): Promise<Pago> {
     const pago = await this.findOne(id);
 
-    if (pago.estado === PagoEstado.VENCIDO) {
-      throw new BadRequestException('No se puede abonar a un pago vencido');
-    }
-
     if (pago.estado === PagoEstado.PAGADO) {
       throw new BadRequestException('El pago ya está completamente pagado');
     }
