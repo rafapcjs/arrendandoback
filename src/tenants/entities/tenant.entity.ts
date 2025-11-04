@@ -38,6 +38,9 @@ export class Tenant {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ default: true })
+  disponible: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

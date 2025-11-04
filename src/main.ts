@@ -5,12 +5,14 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-    forbidNonWhitelisted: true,
-  }));
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
   app.enableCors();
 
@@ -34,7 +36,10 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-  
-  await app.listen(process.env.PORT ?? 3001);
+
+  const port = process.env.PORT ?? 3019;
+  await app.listen(port);
+  console.log(`🚀 Aplicación corriendo en http://localhost:${port}`);
+  console.log(`📖 Documentación API disponible en http://localhost:${port}/api/docs`);
 }
-bootstrap();
+void bootstrap();

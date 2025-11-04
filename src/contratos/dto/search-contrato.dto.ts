@@ -3,7 +3,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ContratoEstado } from '../entities/contrato.entity';
 
 export class SearchContratoDto {
-  @ApiProperty({ description: 'Estado del contrato', enum: ContratoEstado, required: false })
+  @ApiProperty({
+    description: 'Estado del contrato',
+    enum: ContratoEstado,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(ContratoEstado)
   estado?: ContratoEstado;

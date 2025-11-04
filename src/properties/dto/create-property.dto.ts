@@ -18,12 +18,18 @@ export class CreatePropertyDto {
   @IsString()
   codigoServicioLuz: string;
 
-  @ApiProperty({ description: 'Estado de disponibilidad del inmueble', default: true })
+  @ApiProperty({
+    description: 'Estado de disponibilidad del inmueble',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   disponible?: boolean;
 
-  @ApiProperty({ description: 'Descripción detallada del inmueble', required: false })
+  @ApiProperty({
+    description: 'Descripción detallada del inmueble',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   descripcion?: string;

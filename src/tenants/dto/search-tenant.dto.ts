@@ -2,7 +2,10 @@ import { IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SearchTenantDto {
-  @ApiProperty({ description: 'Búsqueda por nombres o apellidos', required: false })
+  @ApiProperty({
+    description: 'Búsqueda por nombres o apellidos',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   search?: string;

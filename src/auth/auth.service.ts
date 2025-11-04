@@ -1,4 +1,10 @@
-import { Injectable, ConflictException, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -9,6 +15,11 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { PaginationDto } from './dto/pagination.dto';
 import { PaginatedUserDto } from './dto/paginated-user.dto';
+import { PasswordRecoveryDto } from './dto/password-recovery.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { EmailService } from '../common/services/email.service';
+import { PasswordGenerator } from '../common/utils/password-generator.util';
+import { JwtBlacklistService } from '../common/services/jwt-blacklist.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +27,8 @@ export class AuthService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private jwtService: JwtService,
+    private emailService: EmailService,
+    private jwtBlacklistService: JwtBlacklistService,
   ) {}
 
   async register(createUserDto: CreateUserDto) {
@@ -66,10 +79,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { 
-      sub: user.id, 
-      email: user.email, 
-      role: user.role 
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is inactive');
+    }
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     };
 
     return {
@@ -85,9 +102,11 @@ export class AuthService {
   }
 
   async validateUser(userId: string): Promise<User | null> {
-    return this.usersRepository.findOne({
-      where: { id: userId },
+    const user = await this.usersRepository.findOne({
+      where: { id: userId, isActive: true },
     });
+
+    return user;
   }
 
   async findAllUsers(paginationDto: PaginationDto): Promise<PaginatedUserDto> {
@@ -98,7 +117,16 @@ export class AuthService {
       skip,
       take: limit,
       order: { createdAt: 'DESC' },
-      select: ['id', 'firstName', 'lastName', 'email', 'role', 'isActive', 'createdAt', 'updatedAt'],
+      select: [
+        'id',
+        'firstName',
+        'lastName',
+        'email',
+        'role',
+        'isActive',
+        'createdAt',
+        'updatedAt',
+      ],
     });
 
     const totalPages = Math.ceil(total / limit);
@@ -115,7 +143,16 @@ export class AuthService {
   async findUserById(id: string): Promise<User> {
     const user = await this.usersRepository.findOne({
       where: { id },
-      select: ['id', 'firstName', 'lastName', 'email', 'role', 'isActive', 'createdAt', 'updatedAt'],
+      select: [
+        'id',
+        'firstName',
+        'lastName',
+        'email',
+        'role',
+        'isActive',
+        'createdAt',
+        'updatedAt',
+      ],
     });
 
     if (!user) {
@@ -155,5 +192,114 @@ export class AuthService {
     const user = await this.findUserById(id);
     await this.usersRepository.update(id, { isActive });
     return this.findUserById(id);
+  }
+
+  async recoverPassword(
+    passwordRecoveryDto: PasswordRecoveryDto,
+  ): Promise<{ message: string }> {
+    const { email } = passwordRecoveryDto;
+
+    const user = await this.usersRepository.findOne({
+      where: { email, role: 'ADMIN' },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        'Usuario administrador no encontrado con este email',
+      );
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException(
+        'La cuenta está desactivada. Contacte al soporte técnico',
+      );
+    }
+
+    const newPassword = PasswordGenerator.generateUniquePassword();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.usersRepository.update(user.id, {
+      password: hashedPassword,
+      updatedAt: new Date(),
+    });
+
+    await this.emailService.sendPasswordRecoveryEmail(email, newPassword);
+
+    return {
+      message:
+        'Nueva contraseña enviada exitosamente al correo electrónico registrado',
+    };
+  }
+
+  async changePassword(
+    userId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const { currentPassword, newPassword, confirmPassword } = changePasswordDto;
+
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException(
+        'La nueva contraseña y su confirmación no coinciden',
+      );
+    }
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('La cuenta está desactivada');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta');
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException(
+        'La nueva contraseña debe ser diferente a la actual',
+      );
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.usersRepository.update(userId, {
+      password: hashedNewPassword,
+      updatedAt: new Date(),
+    });
+
+    return {
+      message: 'Contraseña actualizada exitosamente',
+    };
+  }
+
+  async logout(userId: string): Promise<{ message: string }> {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Generar un identificador único para el token actual
+    // En un sistema real, podrías usar el jti (JWT ID) del token
+    const tokenId = `${userId}-${Date.now()}`;
+
+    // Agregar el token a la lista negra
+    this.jwtBlacklistService.addToBlacklist(tokenId);
+
+    return {
+      message: 'Sesión cerrada exitosamente',
+    };
   }
 }

@@ -13,8 +13,8 @@ export class AppController {
     description: 'API is running successfully',
     schema: {
       type: 'string',
-      example: 'Hello World!'
-    }
+      example: 'Hello World!',
+    },
   })
   @Get()
   getHello(): string {

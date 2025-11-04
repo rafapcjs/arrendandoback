@@ -1,28 +1,44 @@
-import { IsDateString, IsDecimal, IsEnum, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import {
+  IsDateString,
+  IsDecimal,
+  IsEnum,
+  IsNotEmpty,
+  IsUUID,
+  IsPositive,
+  IsNumber,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ContratoEstado } from '../entities/contrato.entity';
 
 export class CreateContratoDto {
-  @ApiProperty({ description: 'Fecha de inicio del contrato', example: '2024-01-01' })
+  @ApiProperty({
+    description: 'Fecha de inicio del contrato',
+    example: '2024-01-01',
+  })
   @IsNotEmpty()
   @IsDateString()
   fechaInicio: string;
 
-  @ApiProperty({ description: 'Fecha de fin del contrato', example: '2024-12-31' })
+  @ApiProperty({
+    description: 'Fecha de fin del contrato',
+    example: '2024-12-31',
+  })
   @IsNotEmpty()
   @IsDateString()
   fechaFin: string;
 
   @ApiProperty({ description: 'Canon mensual del contrato', example: 1500000 })
   @IsNotEmpty()
-  @IsDecimal({ decimal_digits: '2' })
+  @Transform(({ value }) => parseFloat(value))
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
   canonMensual: number;
 
-
-  @ApiProperty({ 
-    description: 'Estado del contrato', 
+  @ApiProperty({
+    description: 'Estado del contrato',
     enum: ContratoEstado,
-    example: ContratoEstado.BORRADOR
+    example: ContratoEstado.BORRADOR,
   })
   @IsEnum(ContratoEstado)
   estado: ContratoEstado;

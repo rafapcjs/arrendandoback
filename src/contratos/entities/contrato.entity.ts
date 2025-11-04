@@ -34,9 +34,8 @@ export class Contrato {
   fechaFin: Date;
 
   @ApiProperty({ description: 'Canon mensual del contrato' })
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 12, scale: 4 })
   canonMensual: number;
-
 
   @ApiProperty({ description: 'Estado del contrato', enum: ContratoEstado })
   @Column({

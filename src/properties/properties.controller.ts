@@ -60,36 +60,75 @@ export class PropertiesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar todos los inmuebles con paginación (Solo ADMIN)' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página (default: 10, max: 100)' })
+  @ApiOperation({
+    summary: 'Listar todos los inmuebles con paginación (Solo ADMIN)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página (default: 10, max: 100)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de inmuebles obtenida exitosamente',
     type: PaginatedPropertyDto,
   })
-  findAll(@Query() paginationDto: PaginationDto): Promise<PaginatedPropertyDto> {
+  findAll(
+    @Query() paginationDto: PaginationDto,
+  ): Promise<PaginatedPropertyDto> {
     return this.propertiesService.findAll(paginationDto);
   }
 
   @Get('search')
   @ApiOperation({ summary: 'Buscar inmuebles con filtros (Solo ADMIN)' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por dirección, códigos de servicios o descripción' })
-  @ApiQuery({ name: 'disponible', required: false, type: Boolean, description: 'Filtrar por disponibilidad' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página (default: 10)' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Buscar por dirección, códigos de servicios o descripción',
+  })
+  @ApiQuery({
+    name: 'disponible',
+    required: false,
+    type: Boolean,
+    description: 'Filtrar por disponibilidad',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página (default: 10)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Resultados de búsqueda obtenidos exitosamente',
     type: PaginatedPropertyDto,
   })
-  search(@Query() searchDto: SearchPropertyDto & PaginationDto): Promise<PaginatedPropertyDto> {
+  search(
+    @Query() searchDto: SearchPropertyDto & PaginationDto,
+  ): Promise<PaginatedPropertyDto> {
     return this.propertiesService.search(searchDto);
   }
 
   @Get('address/:direccion')
   @ApiOperation({ summary: 'Buscar inmueble por dirección (Solo ADMIN)' })
-  @ApiParam({ name: 'direccion', description: 'Dirección del inmueble (búsqueda parcial)' })
+  @ApiParam({
+    name: 'direccion',
+    description: 'Dirección del inmueble (búsqueda parcial)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Inmueble encontrado exitosamente',
@@ -157,6 +196,11 @@ export class PropertiesController {
   @ApiResponse({
     status: 404,
     description: 'Inmueble no encontrado',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'No se puede activar el inmueble porque tiene un contrato activo',
   })
   @ApiResponse({
     status: 403,

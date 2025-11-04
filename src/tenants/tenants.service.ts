@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Tenant } from './entities/tenant.entity';
@@ -7,12 +11,15 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { PaginationDto } from '../auth/dto/pagination.dto';
 import { PaginatedTenantDto } from './dto/paginated-tenant.dto';
 import { SearchTenantDto } from './dto/search-tenant.dto';
+import { Contrato, ContratoEstado } from '../contratos/entities/contrato.entity';
 
 @Injectable()
 export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
+    @InjectRepository(Contrato)
+    private contratoRepository: Repository<Contrato>,
   ) {}
 
   async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
@@ -59,7 +66,9 @@ export class TenantsService {
     };
   }
 
-  async search(searchDto: SearchTenantDto & PaginationDto): Promise<PaginatedTenantDto> {
+  async search(
+    searchDto: SearchTenantDto & PaginationDto,
+  ): Promise<PaginatedTenantDto> {
     const { search, ciudad, isActive, page = 1, limit = 10 } = searchDto;
     const skip = (page - 1) * limit;
 
@@ -68,22 +77,21 @@ export class TenantsService {
     if (search) {
       queryBuilder.andWhere(
         '(tenant.nombres ILIKE :search OR tenant.apellidos ILIKE :search OR tenant.cedula ILIKE :search)',
-        { search: `%${search}%` }
+        { search: `%${search}%` },
       );
     }
 
     if (ciudad) {
-      queryBuilder.andWhere('tenant.ciudad ILIKE :ciudad', { ciudad: `%${ciudad}%` });
+      queryBuilder.andWhere('tenant.ciudad ILIKE :ciudad', {
+        ciudad: `%${ciudad}%`,
+      });
     }
 
     if (isActive !== undefined) {
       queryBuilder.andWhere('tenant.isActive = :isActive', { isActive });
     }
 
-    queryBuilder
-      .orderBy('tenant.createdAt', 'DESC')
-      .skip(skip)
-      .take(limit);
+    queryBuilder.orderBy('tenant.createdAt', 'DESC').skip(skip).take(limit);
 
     const [data, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
@@ -140,6 +148,23 @@ export class TenantsService {
 
   async activate(id: string, isActive: boolean): Promise<Tenant> {
     const tenant = await this.findOne(id);
+    
+    // Si se está intentando desactivar el inquilino, verificar que no tenga contratos activos
+    if (!isActive && tenant.isActive) {
+      const activeContracts = await this.contratoRepository.find({
+        where: {
+          inquilinoId: id,
+          estado: ContratoEstado.ACTIVO,
+        },
+      });
+
+      if (activeContracts.length > 0) {
+        throw new ConflictException(
+          'No se puede desactivar el inquilino porque tiene contratos activos'
+        );
+      }
+    }
+    
     await this.tenantRepository.update(id, { isActive });
     return this.findOne(id);
   }
@@ -155,7 +180,9 @@ export class TenantsService {
     });
 
     if (!tenant) {
-      throw new NotFoundException(`Inquilino con cédula ${cedula} no encontrado`);
+      throw new NotFoundException(
+        `Inquilino con cédula ${cedula} no encontrado`,
+      );
     }
 
     return tenant;
@@ -167,7 +194,9 @@ export class TenantsService {
     });
 
     if (!tenant) {
-      throw new NotFoundException(`Inquilino con correo ${correo} no encontrado`);
+      throw new NotFoundException(
+        `Inquilino con correo ${correo} no encontrado`,
+      );
     }
 
     return tenant;

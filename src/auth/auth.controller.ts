@@ -1,26 +1,26 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  UseGuards, 
-  Get, 
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
   Request,
   Patch,
   Param,
   Delete,
   Query,
   HttpStatus,
-  HttpCode
+  HttpCode,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBearerAuth, 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
   ApiBody,
   ApiParam,
-  ApiQuery
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -29,6 +29,8 @@ import { LoginDto } from './dto/login.dto';
 import { PaginationDto } from './dto/pagination.dto';
 import { PaginatedUserDto } from './dto/paginated-user.dto';
 import { ActivateUserDto } from './dto/activate-user.dto';
+import { PasswordRecoveryDto } from './dto/password-recovery.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { User } from './entities/user.entity';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -49,9 +51,9 @@ export class AuthController {
         lastName: 'Pérez',
         email: 'juan.perez@example.com',
         role: 'tenant',
-        createdAt: '2024-01-15T10:30:00Z'
-      }
-    }
+        createdAt: '2024-01-15T10:30:00Z',
+      },
+    },
   })
   @ApiResponse({
     status: 400,
@@ -79,10 +81,10 @@ export class AuthController {
           firstName: 'Juan',
           lastName: 'Pérez',
           email: 'juan.perez@example.com',
-          role: 'tenant'
-        }
-      }
-    }
+          role: 'tenant',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -105,9 +107,9 @@ export class AuthController {
         lastName: 'Pérez',
         email: 'juan.perez@example.com',
         role: 'tenant',
-        createdAt: '2024-01-15T10:30:00Z'
-      }
-    }
+        createdAt: '2024-01-15T10:30:00Z',
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -120,20 +122,33 @@ export class AuthController {
     return req.user;
   }
 
-
   @Get('users')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('ADMIN')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Listar todos los usuarios con paginación (Solo ADMIN)' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página (default: 10, max: 100)' })
+  @ApiOperation({
+    summary: 'Listar todos los usuarios con paginación (Solo ADMIN)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página (default: 10, max: 100)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de usuarios obtenida exitosamente',
     type: PaginatedUserDto,
   })
-  findAllUsers(@Query() paginationDto: PaginationDto): Promise<PaginatedUserDto> {
+  findAllUsers(
+    @Query() paginationDto: PaginationDto,
+  ): Promise<PaginatedUserDto> {
     return this.authService.findAllUsers(paginationDto);
   }
 
@@ -221,5 +236,81 @@ export class AuthController {
   })
   deleteUser(@Param('id') id: string): Promise<void> {
     return this.authService.deleteUser(id);
+  }
+
+  @ApiOperation({ summary: 'Recuperar contraseña de administrador' })
+  @ApiResponse({
+    status: 200,
+    description: 'Nueva contraseña enviada al correo exitosamente',
+    schema: {
+      example: {
+        message:
+          'Nueva contraseña enviada exitosamente al correo electrónico registrado',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuario administrador no encontrado',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'La cuenta está desactivada',
+  })
+  @ApiBody({ type: PasswordRecoveryDto })
+  @Post('recover-password')
+  async recoverPassword(@Body() passwordRecoveryDto: PasswordRecoveryDto) {
+    return this.authService.recoverPassword(passwordRecoveryDto);
+  }
+
+  @ApiOperation({ summary: 'Cambiar contraseña del usuario autenticado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña actualizada exitosamente',
+    schema: {
+      example: {
+        message: 'Contraseña actualizada exitosamente',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Contraseña actual incorrecta o no autorizado',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos',
+  })
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBody({ type: ChangePasswordDto })
+  @Patch('change-password')
+  async changePassword(
+    @Request() req,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(req.user.sub, changePasswordDto);
+  }
+
+  @ApiOperation({ summary: 'Cerrar sesión del usuario' })
+  @ApiResponse({
+    status: 200,
+    description: 'Sesión cerrada exitosamente',
+    schema: {
+      example: {
+        message: 'Sesión cerrada exitosamente. Elimine el token del cliente.',
+      },
+    },
+  })
+  @Post('logout')
+  async logout() {
+    return {
+      message: 'Sesión cerrada exitosamente. Elimine el token del cliente.',
+      instructions: [
+        'Elimine el token JWT del almacenamiento local del cliente',
+        'Redirija al usuario a la página de login',
+        'El token dejará de ser válido automáticamente cuando expire',
+      ],
+    };
   }
 }

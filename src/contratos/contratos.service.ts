@@ -3,6 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
@@ -13,6 +15,7 @@ import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { SearchContratoDto } from './dto/search-contrato.dto';
 import { PaginatedContratoDto } from './dto/paginated-contrato.dto';
+import { PagosService } from '../pagos/pagos.service';
 
 @Injectable()
 export class ContratosService {
@@ -23,10 +26,13 @@ export class ContratosService {
     private tenantRepository: Repository<Tenant>,
     @InjectRepository(Property)
     private propertyRepository: Repository<Property>,
+    @Inject(forwardRef(() => PagosService))
+    private pagosService: PagosService,
   ) {}
 
   async create(createContratoDto: CreateContratoDto): Promise<Contrato> {
-    const { inquilinoId, inmuebleId, fechaInicio, fechaFin, estado } = createContratoDto;
+    const { inquilinoId, inmuebleId, fechaInicio, fechaFin, estado } =
+      createContratoDto;
 
     // Validate tenant exists and is active
     const tenant = await this.tenantRepository.findOne({
@@ -46,15 +52,19 @@ export class ContratosService {
 
     // Business rule: Property must be available
     if (!property.disponible) {
-      throw new ConflictException('El inmueble no está disponible para arrendar');
+      throw new ConflictException(
+        'El inmueble no está disponible para arrendar',
+      );
     }
 
     // Validate dates
     const startDate = new Date(fechaInicio);
     const endDate = new Date(fechaFin);
-    
+
     if (startDate >= endDate) {
-      throw new BadRequestException('La fecha de inicio debe ser anterior a la fecha de fin');
+      throw new BadRequestException(
+        'La fecha de inicio debe ser anterior a la fecha de fin',
+      );
     }
 
     // Check if property has active contracts in the same period
@@ -71,13 +81,42 @@ export class ContratosService {
 
     // Create contract
     const contrato = this.contratoRepository.create(createContratoDto);
+    const savedContrato = await this.contratoRepository.save(contrato);
 
-    // If contract is being set to ACTIVO, mark property as not available
+    // If contract is being set to ACTIVO, mark property and tenant as not available and generate monthly payments
     if (estado === ContratoEstado.ACTIVO) {
       await this.propertyRepository.update(inmuebleId, { disponible: false });
+      await this.tenantRepository.update(inquilinoId, { disponible: false });
+      
+      // Generate monthly payments for the contract duration
+      const mesesDuracion = this.calcularMesesDuracion(new Date(fechaInicio), new Date(fechaFin));
+      await this.pagosService.crearPagosMensuales(savedContrato.id, mesesDuracion);
     }
 
-    return this.contratoRepository.save(contrato);
+    return savedContrato;
+  }
+
+  private calcularMesesDuracion(fechaInicio: Date, fechaFin: Date): number {
+    // Calcular la diferencia en meses entre fechaInicio y fechaFin
+    const añoInicio = fechaInicio.getFullYear();
+    const mesInicio = fechaInicio.getMonth(); // 0-11
+    const diaInicio = fechaInicio.getDate();
+    
+    const añoFin = fechaFin.getFullYear();
+    const mesFin = fechaFin.getMonth(); // 0-11
+    const diaFin = fechaFin.getDate();
+    
+    // Calcular diferencia total en meses
+    let mesesDiferencia = (añoFin - añoInicio) * 12 + (mesFin - mesInicio);
+    
+    // Si el día de fin es mayor o igual al día de inicio, contar ese mes completo
+    // Ejemplo: 2025-01-01 a 2025-06-30 = 6 meses (enero, febrero, marzo, abril, mayo, junio)
+    if (diaFin >= diaInicio) {
+      mesesDiferencia += 1;
+    }
+    
+    // Asegurar que sea al menos 1 mes si las fechas son válidas
+    return Math.max(1, mesesDiferencia);
   }
 
   async findAll(
@@ -93,7 +132,9 @@ export class ContratosService {
     // Apply filters
     if (searchDto) {
       if (searchDto.estado) {
-        queryBuilder.andWhere('contrato.estado = :estado', { estado: searchDto.estado });
+        queryBuilder.andWhere('contrato.estado = :estado', {
+          estado: searchDto.estado,
+        });
       }
 
       if (searchDto.inquilinoId) {
@@ -109,17 +150,23 @@ export class ContratosService {
       }
 
       if (searchDto.fechaInicioDesde && searchDto.fechaInicioHasta) {
-        queryBuilder.andWhere('contrato.fechaInicio BETWEEN :fechaInicioDesde AND :fechaInicioHasta', {
-          fechaInicioDesde: searchDto.fechaInicioDesde,
-          fechaInicioHasta: searchDto.fechaInicioHasta,
-        });
+        queryBuilder.andWhere(
+          'contrato.fechaInicio BETWEEN :fechaInicioDesde AND :fechaInicioHasta',
+          {
+            fechaInicioDesde: searchDto.fechaInicioDesde,
+            fechaInicioHasta: searchDto.fechaInicioHasta,
+          },
+        );
       }
 
       if (searchDto.fechaFinDesde && searchDto.fechaFinHasta) {
-        queryBuilder.andWhere('contrato.fechaFin BETWEEN :fechaFinDesde AND :fechaFinHasta', {
-          fechaFinDesde: searchDto.fechaFinDesde,
-          fechaFinHasta: searchDto.fechaFinHasta,
-        });
+        queryBuilder.andWhere(
+          'contrato.fechaFin BETWEEN :fechaFinDesde AND :fechaFinHasta',
+          {
+            fechaFinDesde: searchDto.fechaFinDesde,
+            fechaFinHasta: searchDto.fechaFinHasta,
+          },
+        );
       }
     }
 
@@ -154,11 +201,17 @@ export class ContratosService {
     return contrato;
   }
 
-  async update(id: string, updateContratoDto: UpdateContratoDto): Promise<Contrato> {
+  async update(
+    id: string,
+    updateContratoDto: UpdateContratoDto,
+  ): Promise<Contrato> {
     const contrato = await this.findOne(id);
 
     // If changing property, validate it exists and is available
-    if (updateContratoDto.inmuebleId && updateContratoDto.inmuebleId !== contrato.inmuebleId) {
+    if (
+      updateContratoDto.inmuebleId &&
+      updateContratoDto.inmuebleId !== contrato.inmuebleId
+    ) {
       const newProperty = await this.propertyRepository.findOne({
         where: { id: updateContratoDto.inmuebleId },
       });
@@ -173,12 +226,17 @@ export class ContratosService {
 
       // Make old property available again if contract was active
       if (contrato.estado === ContratoEstado.ACTIVO) {
-        await this.propertyRepository.update(contrato.inmuebleId, { disponible: true });
+        await this.propertyRepository.update(contrato.inmuebleId, {
+          disponible: true,
+        });
       }
     }
 
     // If changing tenant, validate it exists and is active
-    if (updateContratoDto.inquilinoId && updateContratoDto.inquilinoId !== contrato.inquilinoId) {
+    if (
+      updateContratoDto.inquilinoId &&
+      updateContratoDto.inquilinoId !== contrato.inquilinoId
+    ) {
       const newTenant = await this.tenantRepository.findOne({
         where: { id: updateContratoDto.inquilinoId, isActive: true },
       });
@@ -190,58 +248,81 @@ export class ContratosService {
 
     // Validate dates if provided
     if (updateContratoDto.fechaInicio || updateContratoDto.fechaFin) {
-      const startDate = new Date(updateContratoDto.fechaInicio || contrato.fechaInicio);
+      const startDate = new Date(
+        updateContratoDto.fechaInicio || contrato.fechaInicio,
+      );
       const endDate = new Date(updateContratoDto.fechaFin || contrato.fechaFin);
 
       if (startDate >= endDate) {
-        throw new BadRequestException('La fecha de inicio debe ser anterior a la fecha de fin');
+        throw new BadRequestException(
+          'La fecha de inicio debe ser anterior a la fecha de fin',
+        );
       }
     }
 
-    // Handle state changes
-    if (updateContratoDto.estado && updateContratoDto.estado !== contrato.estado) {
+    // Handle state changes and date changes
+    const fechasChanged = updateContratoDto.fechaInicio || updateContratoDto.fechaFin;
+    const estadoChanged = updateContratoDto.estado && updateContratoDto.estado !== contrato.estado;
+    
+    if (estadoChanged) {
       const propertyId = updateContratoDto.inmuebleId || contrato.inmuebleId;
 
-      // If changing to ACTIVO, mark property as not available
+      // If changing to ACTIVO, mark property and tenant as not available and generate payments
       if (updateContratoDto.estado === ContratoEstado.ACTIVO) {
+        const tenantId = updateContratoDto.inquilinoId || contrato.inquilinoId;
         await this.propertyRepository.update(propertyId, { disponible: false });
+        await this.tenantRepository.update(tenantId, { disponible: false });
+        
+        // Generate payments for the contract duration
+        const fechaInicio = new Date(updateContratoDto.fechaInicio || contrato.fechaInicio);
+        const fechaFin = new Date(updateContratoDto.fechaFin || contrato.fechaFin);
+        const mesesDuracion = this.calcularMesesDuracion(fechaInicio, fechaFin);
+        await this.pagosService.crearPagosMensuales(id, mesesDuracion);
       }
 
-      // If changing from ACTIVO to another state, mark property as available
-      if (contrato.estado === ContratoEstado.ACTIVO && updateContratoDto.estado !== ContratoEstado.ACTIVO) {
+      // If changing from ACTIVO to another state, mark property and tenant as available
+      if (
+        contrato.estado === ContratoEstado.ACTIVO &&
+        updateContratoDto.estado !== ContratoEstado.ACTIVO
+      ) {
         await this.propertyRepository.update(propertyId, { disponible: true });
+        await this.tenantRepository.update(contrato.inquilinoId, { disponible: true });
       }
+    }
+    
+    // If dates changed and contract is ACTIVO, regenerate payments
+    if (fechasChanged && (contrato.estado === ContratoEstado.ACTIVO || updateContratoDto.estado === ContratoEstado.ACTIVO)) {
+      const fechaInicio = new Date(updateContratoDto.fechaInicio || contrato.fechaInicio);
+      const fechaFin = new Date(updateContratoDto.fechaFin || contrato.fechaFin);
+      const mesesDuracion = this.calcularMesesDuracion(fechaInicio, fechaFin);
+      await this.pagosService.crearPagosMensuales(id, mesesDuracion);
     }
 
     // Update contract
     await this.contratoRepository.update(id, updateContratoDto);
-    
+
     return this.findOne(id);
   }
 
   async remove(id: string): Promise<void> {
     const contrato = await this.findOne(id);
 
-    // If contract is active, make property available again
+    // Only allow deletion if contract is not ACTIVO
     if (contrato.estado === ContratoEstado.ACTIVO) {
-      await this.propertyRepository.update(contrato.inmuebleId, { disponible: true });
+      throw new BadRequestException(
+        'No se puede eliminar un contrato activo. Debe finalizar o cambiar el estado del contrato primero.'
+      );
     }
 
+    // Make property and tenant available again when deleting the contract
+    await this.propertyRepository.update(contrato.inmuebleId, {
+      disponible: true,
+    });
+    await this.tenantRepository.update(contrato.inquilinoId, {
+      disponible: true,
+    });
+
     await this.contratoRepository.delete(id);
-  }
-
-  async findByTenant(tenantId: string): Promise<Contrato[]> {
-    return this.contratoRepository.find({
-      where: { inquilinoId: tenantId },
-      relations: ['inquilino', 'inmueble'],
-    });
-  }
-
-  async findByProperty(propertyId: string): Promise<Contrato[]> {
-    return this.contratoRepository.find({
-      where: { inmuebleId: propertyId },
-      relations: ['inquilino', 'inmueble'],
-    });
   }
 
   async getActiveContracts(): Promise<Contrato[]> {
@@ -263,5 +344,38 @@ export class ContratosService {
       },
       relations: ['inquilino', 'inmueble'],
     });
+  }
+
+  async findAllSimple(
+    page: number = 1,
+    limit: number = 10,
+    estado?: string,
+  ): Promise<PaginatedContratoDto> {
+    const queryBuilder = this.contratoRepository
+      .createQueryBuilder('contrato')
+      .leftJoinAndSelect('contrato.inquilino', 'inquilino')
+      .leftJoinAndSelect('contrato.inmueble', 'inmueble');
+
+    // Apply estado filter if provided
+    if (estado) {
+      queryBuilder.andWhere('contrato.estado = :estado', { estado });
+    }
+
+    // Apply pagination
+    const offset = (page - 1) * limit;
+    queryBuilder.skip(offset).take(limit);
+
+    // Order by creation date
+    queryBuilder.orderBy('contrato.createdAt', 'DESC');
+
+    const [contratos, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data: contratos,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }

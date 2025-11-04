@@ -1,0 +1,225 @@
+# FILTRAR PAGOS POR ESTADO - GUÍA PARA FRONTEND
+# Sistema de Arrendamientos - API de Filtrado de Pagos
+# Base URL: http://localhost:3015
+
+## AUTENTICACIÓN REQUERIDA
+Authorization: Bearer {token}
+Content-Type: application/json
+
+## 1. LISTAR TODOS LOS PAGOS SIN FILTRO
+GET /pagos
+- Respuesta: Array con todos los pagos del sistema
+- Incluye relaciones: contrato, inquilino, inmueble
+
+## 2. FILTRAR PAGOS POR ESTADO - QUERY PARAMETER (RECOMENDADO)
+GET /pagos?estado={ESTADO}
+
+### Estados válidos:
+- PENDIENTE - Pagos sin abonos
+- PARCIAL - Pagos con abono parcial  
+- PAGADO - Pagos completamente pagados
+- VENCIDO - Pagos vencidos (más de 3 días)
+
+### Ejemplos de uso:
+```
+# Pagos pendientes
+GET /pagos?estado=PENDIENTE
+
+# Pagos vencidos
+GET /pagos?estado=VENCIDO
+
+# Pagos parciales
+GET /pagos?estado=PARCIAL
+
+# Pagos completados
+GET /pagos?estado=PAGADO
+```
+
+## 3. FILTRAR PAGOS POR ESTADO - PATH PARAMETER (ALTERNATIVO)
+GET /pagos/estado/{ESTADO}
+
+### Ejemplos:
+```
+GET /pagos/estado/PENDIENTE
+GET /pagos/estado/VENCIDO
+GET /pagos/estado/PARCIAL
+GET /pagos/estado/PAGADO
+```
+
+## 4. ESTRUCTURA DE RESPUESTA
+```json
+[
+  {
+    "id": "uuid",
+    "montoTotal": "1200000.0000",
+    "montoAbonado": "500000.0000",
+    "estado": "PARCIAL",
+    "fechaPagoEsperada": "2025-12-01",
+    "fechaPagoReal": null,
+    "contratoId": "uuid-contrato",
+    "contrato": {
+      "id": "uuid-contrato",
+      "fechaInicio": "2025-01-01",
+      "fechaFin": "2025-12-31",
+      "canonMensual": "1200000.0000",
+      "estado": "ACTIVO",
+      "inquilino": {
+        "id": "uuid-inquilino",
+        "cedula": "1234567890",
+        "nombres": "Juan Carlos",
+        "apellidos": "Pérez López",
+        "telefono": "3001234567",
+        "correo": "juan.perez@email.com",
+        "ciudad": "Bogotá"
+      },
+      "inmueble": {
+        "id": "uuid-inmueble",
+        "direccion": "Calle 123 #45-67 Apto 101",
+        "descripcion": "Apartamento 2 habitaciones",
+        "codigoServicioAgua": "AGU123456",
+        "codigoServicioGas": "GAS123456",
+        "codigoServicioLuz": "LUZ123456",
+        "disponible": false
+      }
+    },
+    "createdAt": "2025-10-26T20:08:37.068Z",
+    "updatedAt": "2025-10-26T20:36:27.302Z"
+  }
+]
+```
+
+## 5. CÓDIGOS DE RESPUESTA HTTP
+- 200: OK - Datos obtenidos exitosamente
+- 400: Bad Request - Estado inválido o parámetros incorrectos
+- 401: Unauthorized - Token de autenticación faltante o inválido
+- 500: Internal Server Error - Error interno del servidor
+
+## 6. MANEJO DE ERRORES
+```json
+{
+  "message": "Invalid enum value. Expected PENDIENTE | PARCIAL | PAGADO | VENCIDO",
+  "error": "Bad Request",
+  "statusCode": 400
+}
+```
+
+## 7. EJEMPLO COMPLETO CON FETCH (JAVASCRIPT)
+```javascript
+// Función para obtener pagos por estado
+async function obtenerPagosPorEstado(estado, token) {
+  const url = `http://localhost:3015/pagos?estado=${estado}`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+
+    const pagos = await response.json();
+    return pagos;
+  } catch (error) {
+    console.error('Error al obtener pagos:', error);
+    throw error;
+  }
+}
+
+// Ejemplos de uso
+const token = 'tu-jwt-token-aqui';
+
+// Obtener pagos pendientes
+obtenerPagosPorEstado('PENDIENTE', token)
+  .then(pagos => console.log('Pagos pendientes:', pagos));
+
+// Obtener pagos vencidos
+obtenerPagosPorEstado('VENCIDO', token)
+  .then(pagos => console.log('Pagos vencidos:', pagos));
+```
+
+## 8. EJEMPLO CON AXIOS (JAVASCRIPT)
+```javascript
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:3015',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Interceptor para agregar token automáticamente
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Función para obtener pagos por estado
+async function obtenerPagosPorEstado(estado) {
+  try {
+    const response = await api.get(`/pagos?estado=${estado}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+// Uso
+obtenerPagosPorEstado('PENDIENTE')
+  .then(pagos => {
+    console.log(`Encontrados ${pagos.length} pagos pendientes`);
+    pagos.forEach(pago => {
+      console.log(`- Pago ${pago.id}: $${pago.montoTotal} - ${pago.estado}`);
+    });
+  });
+```
+
+## 9. VALIDACIONES FRONTEND
+Antes de hacer la petición, validar:
+- Estado debe ser exactamente: PENDIENTE, PARCIAL, PAGADO, o VENCIDO
+- Token de autenticación presente
+- Manejar estados de carga y error
+
+## 10. CASOS DE USO COMUNES
+- Dashboard con contadores por estado
+- Lista filtrada de pagos por cobrar
+- Reportes de morosidad (VENCIDO)
+- Seguimiento de pagos parciales (PARCIAL)
+- Historia de pagos completados (PAGADO)
+
+## 11. OPTIMIZACIONES RECOMENDADAS
+- Implementar caché para consultas frecuentes
+- Paginación para grandes volúmenes de datos
+- Filtros combinados (estado + fecha + contrato)
+- Debounce en búsquedas en tiempo real
+
+## 12. HERRAMIENTAS DE PRUEBA
+### Con cURL:
+```bash
+curl -X GET "http://localhost:3015/pagos?estado=PENDIENTE" \
+  -H "Authorization: Bearer tu-token-aqui" \
+  -H "Content-Type: application/json"
+```
+
+### Con Postman:
+1. Method: GET
+2. URL: http://localhost:3015/pagos?estado=PENDIENTE
+3. Headers:
+   - Authorization: Bearer {token}
+   - Content-Type: application/json
+
+## NOTAS IMPORTANTES
+✅ Los filtros son case-sensitive (usar mayúsculas)
+✅ Sin filtro devuelve todos los pagos
+✅ Respuesta incluye datos completos de relaciones
+✅ Estados se actualizan automáticamente según lógica de negocio
+✅ API probada y funcionando correctamente

@@ -3,9 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PropertiesService } from './properties.service';
 import { PropertiesController } from './properties.controller';
 import { Property } from './entities/property.entity';
+import { Contrato } from '../contratos/entities/contrato.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Property])],
+  imports: [TypeOrmModule.forFeature([Property, Contrato])],
   controllers: [PropertiesController],
   providers: [PropertiesService],
   exports: [PropertiesService],

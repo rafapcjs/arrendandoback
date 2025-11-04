@@ -1,0 +1,35 @@
+DASHBOARD STATS API
+==================
+
+ENDPOINT: GET /dashboard/stats
+URL: http://localhost:3009/dashboard/stats
+
+RESPUESTA ACTUAL:
+{
+  "totalUsuarios": 22,
+  "usuariosActivos": 20,
+  "totalInquilinos": 14,
+  "inquilinosActivos": 14,
+  "totalInmuebles": 15,
+  "inmueblesDisponibles": 6,
+  "inmueblesOcupados": 9,
+  "totalContratos": 9,
+  "contratosActivos": 9,
+  "contratosProximosVencer": 0,
+  "contratosVencidos": 0,
+  "totalPagos": 22,
+  "pagosPendientes": 12,
+  "pagosVencidos": 6,
+  "montoRecaudadoMesActual": 7000000,
+  "montoPendienteRecaudar": 30500000,
+  "tasaOcupacion": 60
+}
+
+PARA EL FRONTEND:
+- No requiere autenticación
+- Retorna JSON con todas las estadísticas
+- Actualiza en tiempo real con datos de BD
+- Formatear montos: 7000000 = $7,000,000 COP
+
+CURL TEST:
+curl -X GET http://localhost:3009/dashboard/stats

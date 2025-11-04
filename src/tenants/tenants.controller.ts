@@ -33,6 +33,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('inquilinos')
 @ApiBearerAuth('JWT-auth')
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('ADMIN')
 @Controller('tenants')
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
@@ -61,8 +63,18 @@ export class TenantsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar todos los inquilinos con paginación' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página (default: 10, max: 100)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página (default: 10, max: 100)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de inquilinos obtenida exitosamente',
@@ -74,17 +86,44 @@ export class TenantsController {
 
   @Get('search')
   @ApiOperation({ summary: 'Buscar inquilinos con filtros' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por nombres, apellidos o cédula' })
-  @ApiQuery({ name: 'ciudad', required: false, type: String, description: 'Filtrar por ciudad' })
-  @ApiQuery({ name: 'isActive', required: false, type: Boolean, description: 'Filtrar por estado activo' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página (default: 10)' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Buscar por nombres, apellidos o cédula',
+  })
+  @ApiQuery({
+    name: 'ciudad',
+    required: false,
+    type: String,
+    description: 'Filtrar por ciudad',
+  })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    type: Boolean,
+    description: 'Filtrar por estado activo',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página (default: 10)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Resultados de búsqueda obtenidos exitosamente',
     type: PaginatedTenantDto,
   })
-  search(@Query() searchDto: SearchTenantDto & PaginationDto): Promise<PaginatedTenantDto> {
+  search(
+    @Query() searchDto: SearchTenantDto & PaginationDto,
+  ): Promise<PaginatedTenantDto> {
     return this.tenantsService.search(searchDto);
   }
 

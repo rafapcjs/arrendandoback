@@ -21,19 +21,17 @@ import {
 import { ContratosService } from './contratos.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
-import { SearchContratoDto } from './dto/search-contrato.dto';
 import { PaginatedContratoDto } from './dto/paginated-contrato.dto';
 import { Contrato } from './entities/contrato.entity';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { PaginationDto } from '../auth/dto/pagination.dto';
 import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Contratos')
-@Controller('contratos')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles('ADMIN')
-@ApiBearerAuth()
+@Controller('contratos')
 export class ContratosController {
   constructor(private readonly contratosService: ContratosService) {}
 
@@ -62,26 +60,36 @@ export class ContratosController {
 
   @Get()
   @ApiOperation({ summary: 'Obtener lista paginada de contratos' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página' })
-  @ApiQuery({ name: 'estado', required: false, description: 'Filtrar por estado' })
-  @ApiQuery({ name: 'inquilinoId', required: false, description: 'Filtrar por inquilino' })
-  @ApiQuery({ name: 'inmuebleId', required: false, description: 'Filtrar por inmueble' })
-  @ApiQuery({ name: 'fechaInicioDesde', required: false, description: 'Filtrar fecha inicio desde' })
-  @ApiQuery({ name: 'fechaInicioHasta', required: false, description: 'Filtrar fecha inicio hasta' })
-  @ApiQuery({ name: 'fechaFinDesde', required: false, description: 'Filtrar fecha fin desde' })
-  @ApiQuery({ name: 'fechaFinHasta', required: false, description: 'Filtrar fecha fin hasta' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página (default: 10)',
+  })
+  @ApiQuery({
+    name: 'estado',
+    required: false,
+    description: 'Filtrar por estado del contrato',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Lista de contratos obtenida exitosamente',
     type: PaginatedContratoDto,
   })
   findAll(
-    @Query() paginationDto: PaginationDto,
-    @Query() searchDto: SearchContratoDto,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Query('estado') estado?: string,
   ): Promise<PaginatedContratoDto> {
-    const { page, limit } = paginationDto;
-    return this.contratosService.findAll(page, limit, searchDto);
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    return this.contratosService.findAllSimple(pageNum, limitNum, estado);
   }
 
   @Get('activos')
@@ -102,36 +110,8 @@ export class ContratosController {
     description: 'Lista de contratos próximos a vencer',
     type: [Contrato],
   })
-  getContractsExpiringSoon(
-    @Param('days') days: number,
-  ): Promise<Contrato[]> {
+  getContractsExpiringSoon(@Param('days') days: number): Promise<Contrato[]> {
     return this.contratosService.getContractsExpiringSoon(days);
-  }
-
-  @Get('por-inquilino/:inquilinoId')
-  @ApiOperation({ summary: 'Obtener contratos por inquilino' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de contratos del inquilino',
-    type: [Contrato],
-  })
-  findByTenant(
-    @Param('inquilinoId', ParseUUIDPipe) inquilinoId: string,
-  ): Promise<Contrato[]> {
-    return this.contratosService.findByTenant(inquilinoId);
-  }
-
-  @Get('por-inmueble/:inmuebleId')
-  @ApiOperation({ summary: 'Obtener contratos por inmueble' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de contratos del inmueble',
-    type: [Contrato],
-  })
-  findByProperty(
-    @Param('inmuebleId', ParseUUIDPipe) inmuebleId: string,
-  ): Promise<Contrato[]> {
-    return this.contratosService.findByProperty(inmuebleId);
   }
 
   @Get(':id')
