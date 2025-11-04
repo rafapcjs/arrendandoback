@@ -1,27 +1,68 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter;
 
   constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
+    const smtpConfig = {
       host: this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com'),
       port: this.configService.get<number>('SMTP_PORT', 587),
-      secure: false,
+      secure: false, // true for 465, false for other ports
       auth: {
         user: this.configService.get<string>('SMTP_USER'),
         pass: this.configService.get<string>('SMTP_PASS'),
       },
+      // Configuración para Render
+      connectionTimeout: 60000, // 60 seconds
+      greetingTimeout: 30000,   // 30 seconds
+      socketTimeout: 60000,     // 60 seconds
+      // Pool configuration para mejor rendimiento
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 3,
+      // Rate limiting
+      rateDelta: 20000,  // 20 seconds
+      rateLimit: 5,      // 5 emails per rateDelta
+      // TLS options
+      tls: {
+        rejectUnauthorized: false,
+        ciphers: 'SSLv3'
+      },
+      // Debug options
+      debug: this.configService.get<string>('NODE_ENV') !== 'production',
+      logger: this.configService.get<string>('NODE_ENV') !== 'production'
+    };
+
+    this.logger.log('Configurando transporter SMTP...', {
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      user: smtpConfig.auth.user ? '***' : 'no configurado'
     });
+
+    this.transporter = nodemailer.createTransport(smtpConfig);
+
+    // Verificar configuración
+    this.verifyConnection();
+  }
+
+  private async verifyConnection(): Promise<void> {
+    try {
+      await this.transporter.verify();
+      this.logger.log('Conexión SMTP verificada exitosamente');
+    } catch (error) {
+      this.logger.error('Error verificando conexión SMTP:', error.message);
+    }
   }
 
   async sendEmail(
     to: string,
     subject: string,
     html: string,
+    retries: number = 3
   ): Promise<void> {
     const mailOptions = {
       from: this.configService.get<string>(
@@ -33,11 +74,36 @@ export class EmailService {
       html,
     };
 
-    try {
-      await this.transporter.sendMail(mailOptions);
-    } catch (error) {
-      console.error('Error sending email:', error);
-      throw new Error('Error enviando el correo');
+    this.logger.log(`Enviando email a: ${to}, Asunto: ${subject}`);
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const result = await this.transporter.sendMail(mailOptions);
+        this.logger.log(`Email enviado exitosamente (intento ${attempt}):`, {
+          messageId: result.messageId,
+          to: to,
+          subject: subject
+        });
+        return;
+      } catch (error) {
+        this.logger.error(`Error enviando email (intento ${attempt}/${retries}):`, {
+          error: error.message,
+          code: error.code,
+          command: error.command,
+          to: to,
+          subject: subject
+        });
+
+        if (attempt === retries) {
+          // Si es el último intento, lanzar el error
+          throw new Error(`Error enviando el correo después de ${retries} intentos: ${error.message}`);
+        }
+
+        // Esperar antes del siguiente intento (backoff exponencial)
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
+        this.logger.log(`Esperando ${delay}ms antes del siguiente intento...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }
 
