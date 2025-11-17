@@ -152,16 +152,60 @@ export class ContratosController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Eliminar un contrato' })
+  @ApiOperation({ summary: 'Marcar contrato como vencido (eliminar lógicamente)' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Contrato eliminado exitosamente',
+    description: 'Contrato marcado como vencido exitosamente',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Contrato no encontrado',
   })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'No se puede eliminar un contrato activo',
+  })
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.contratosService.remove(id);
+  }
+
+  @Patch(':id/finalizar')
+  @ApiOperation({ summary: 'Finalizar un contrato' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Contrato finalizado exitosamente',
+    type: Contrato,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Contrato no encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Solo se pueden finalizar contratos activos o próximos a vencer',
+  })
+  finalizarContrato(@Param('id', ParseUUIDPipe) id: string): Promise<Contrato> {
+    return this.contratosService.finalizarContrato(id);
+  }
+
+  @Patch(':id/marcar-vencido')
+  @ApiOperation({ summary: 'Marcar contrato como vencido' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Contrato marcado como vencido exitosamente',
+    type: Contrato,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Contrato no encontrado',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'No se puede marcar como vencido antes de la fecha de fin o si ya está finalizado',
+  })
+  marcarComoVencido(@Param('id', ParseUUIDPipe) id: string): Promise<Contrato> {
+    return this.contratosService.marcarComoVencido(id);
   }
 }

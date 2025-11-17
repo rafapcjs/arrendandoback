@@ -1,22 +1,25 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpCode, 
-  HttpStatus, 
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
   Logger,
   BadRequestException,
-  InternalServerErrorException
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
   ApiBadRequestResponse,
-  ApiInternalServerErrorResponse 
+  ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 import { EmailService } from '../services/email.service';
-import { ContactFormDto, ContactFormResponseDto } from '../dto/contact-form.dto';
+import {
+  ContactFormDto,
+  ContactFormResponseDto,
+} from '../dto/contact-form.dto';
 
 @ApiTags('📞 Contacto')
 @Controller('contact')
@@ -29,7 +32,8 @@ export class ContactController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Enviar mensaje de contacto',
-    description: 'Permite a los usuarios enviar mensajes de contacto que serán reenviados al administrador del sistema por correo electrónico.',
+    description:
+      'Permite a los usuarios enviar mensajes de contacto que serán reenviados al administrador del sistema por correo electrónico.',
   })
   @ApiResponse({
     status: 200,
@@ -37,7 +41,8 @@ export class ContactController {
     type: ContactFormResponseDto,
     example: {
       success: true,
-      message: 'Tu mensaje ha sido enviado exitosamente. Te contactaremos pronto.',
+      message:
+        'Tu mensaje ha sido enviado exitosamente. Te contactaremos pronto.',
     },
   })
   @ApiBadRequestResponse({
@@ -47,7 +52,7 @@ export class ContactController {
       message: [
         'El nombre es requerido',
         'Debe proporcionar un correo electrónico válido',
-        'El mensaje debe tener entre 10 y 1000 caracteres'
+        'El mensaje debe tener entre 10 y 1000 caracteres',
       ],
       error: 'Bad Request',
     },
@@ -66,32 +71,41 @@ export class ContactController {
     const { name, email, phone, message } = contactFormDto;
 
     try {
-      this.logger.log(`📧 Nuevo mensaje de contacto recibido de: ${name} (${email})`);
+      this.logger.log(
+        `📧 Nuevo mensaje de contacto recibido de: ${name} (${email})`,
+      );
 
       // Validación adicional de seguridad
       if (!name.trim() || !email.trim() || !phone.trim() || !message.trim()) {
-        throw new BadRequestException('Todos los campos son requeridos y no pueden estar vacíos');
+        throw new BadRequestException(
+          'Todos los campos son requeridos y no pueden estar vacíos',
+        );
       }
 
       // Enviar el correo al administrador
       await this.emailService.sendContactFormEmail(name, email, phone, message);
 
-      this.logger.log(`✅ Mensaje de contacto enviado exitosamente desde: ${email}`);
+      this.logger.log(
+        `✅ Mensaje de contacto enviado exitosamente desde: ${email}`,
+      );
 
       return {
         success: true,
-        message: 'Tu mensaje ha sido enviado exitosamente. Te contactaremos pronto.',
+        message:
+          'Tu mensaje ha sido enviado exitosamente. Te contactaremos pronto.',
       };
-
     } catch (error) {
-      this.logger.error(`❌ Error enviando mensaje de contacto desde ${email}:`, error);
+      this.logger.error(
+        `❌ Error enviando mensaje de contacto desde ${email}:`,
+        error,
+      );
 
       if (error instanceof BadRequestException) {
         throw error;
       }
 
       throw new InternalServerErrorException(
-        'Error interno del servidor al procesar la solicitud. Por favor, inténtalo de nuevo más tarde.'
+        'Error interno del servidor al procesar la solicitud. Por favor, inténtalo de nuevo más tarde.',
       );
     }
   }

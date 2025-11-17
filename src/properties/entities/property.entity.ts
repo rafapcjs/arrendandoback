@@ -4,8 +4,11 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
+import { User } from '../../auth/entities/user.entity';
 
 @Entity('properties')
 export class Property {
@@ -36,6 +39,14 @@ export class Property {
   @ApiProperty({ description: 'Descripción detallada del inmueble' })
   @Column({ type: 'text', nullable: true })
   descripcion: string;
+
+  @ApiProperty({ description: 'Usuario que creó la propiedad' })
+  @ManyToOne(() => User, (user) => user.propiedadesCreadas, { nullable: true })
+  @JoinColumn({ name: 'creadoPorId' })
+  creadoPor: Promise<User>;
+
+  @Column({ type: 'uuid', nullable: true })
+  creadoPorId: string;
 
   @ApiProperty({ description: 'Fecha de creación del registro' })
   @CreateDateColumn()

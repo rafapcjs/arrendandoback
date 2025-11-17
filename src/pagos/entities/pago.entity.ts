@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Contrato } from '../../contratos/entities/contrato.entity';
+import { User } from '../../auth/entities/user.entity';
 
 export enum PagoEstado {
   PENDIENTE = 'PENDIENTE',
@@ -55,6 +56,14 @@ export class Pago {
   @ManyToOne(() => Contrato, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'contratoId' })
   contrato: Contrato;
+
+  @ApiProperty({ description: 'Usuario que registró el pago' })
+  @ManyToOne(() => User, (user) => user.pagosRegistrados, { nullable: true })
+  @JoinColumn({ name: 'registradoPorId' })
+  registradoPor: Promise<User>;
+
+  @Column({ type: 'uuid', nullable: true })
+  registradoPorId: string;
 
   @ApiProperty({ description: 'Fecha de creación del registro' })
   @CreateDateColumn()

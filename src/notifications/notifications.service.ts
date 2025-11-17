@@ -21,11 +21,11 @@ export class NotificationsService {
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async checkPaymentReminders() {
     this.logger.log('🔄 Iniciando verificación de recordatorios de pago...');
-    
+
     try {
       const twoDaysFromNow = new Date();
       twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-      
+
       // Buscar pagos pendientes que vencen en 2 días
       const pendingPayments = await this.pagoRepository
         .createQueryBuilder('pago')
@@ -33,8 +33,8 @@ export class NotificationsService {
         .innerJoinAndSelect('contrato.inquilino', 'inquilino')
         .innerJoinAndSelect('contrato.inmueble', 'inmueble')
         .where('pago.estado = :estado', { estado: PagoEstado.PENDIENTE })
-        .andWhere('DATE(pago.fechaPagoEsperada) = DATE(:fecha)', { 
-          fecha: twoDaysFromNow.toISOString().split('T')[0] 
+        .andWhere('DATE(pago.fechaPagoEsperada) = DATE(:fecha)', {
+          fecha: twoDaysFromNow.toISOString().split('T')[0],
         })
         .getMany();
 
@@ -42,7 +42,9 @@ export class NotificationsService {
         await this.sendPaymentReminder(pago);
       }
 
-      this.logger.log(`✅ Recordatorios de pago enviados: ${pendingPayments.length}`);
+      this.logger.log(
+        `✅ Recordatorios de pago enviados: ${pendingPayments.length}`,
+      );
     } catch (error) {
       this.logger.error('❌ Error en recordatorios de pago:', error);
     }
@@ -51,19 +53,19 @@ export class NotificationsService {
   @Cron(CronExpression.EVERY_DAY_AT_10AM)
   async checkContractExpirations() {
     this.logger.log('🔄 Iniciando verificación de vencimientos de contrato...');
-    
+
     try {
       const threeMonthsFromNow = new Date();
       threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-      
+
       // Buscar contratos que vencen en 3 meses
       const expiringContracts = await this.contratoRepository
         .createQueryBuilder('contrato')
         .innerJoinAndSelect('contrato.inquilino', 'inquilino')
         .innerJoinAndSelect('contrato.inmueble', 'inmueble')
         .where('contrato.estado = :estado', { estado: 'ACTIVO' })
-        .andWhere('DATE(contrato.fechaFin) = DATE(:fecha)', { 
-          fecha: threeMonthsFromNow.toISOString().split('T')[0] 
+        .andWhere('DATE(contrato.fechaFin) = DATE(:fecha)', {
+          fecha: threeMonthsFromNow.toISOString().split('T')[0],
         })
         .getMany();
 
@@ -71,7 +73,9 @@ export class NotificationsService {
         await this.sendContractExpirationReminder(contrato);
       }
 
-      this.logger.log(`✅ Recordatorios de vencimiento enviados: ${expiringContracts.length}`);
+      this.logger.log(
+        `✅ Recordatorios de vencimiento enviados: ${expiringContracts.length}`,
+      );
     } catch (error) {
       this.logger.error('❌ Error en recordatorios de vencimiento:', error);
     }
@@ -80,11 +84,11 @@ export class NotificationsService {
   @Cron(CronExpression.EVERY_DAY_AT_11AM)
   async checkOverduePayments() {
     this.logger.log('🔄 Iniciando verificación de pagos vencidos...');
-    
+
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // Buscar pagos que están vencidos (fecha de vencimiento menor a hoy)
       const overduePayments = await this.pagoRepository
         .createQueryBuilder('pago')
@@ -94,10 +98,14 @@ export class NotificationsService {
 
       // Cambiar estado a 'vencido'
       for (const pago of overduePayments) {
-        await this.pagoRepository.update(pago.id, { estado: PagoEstado.VENCIDO });
+        await this.pagoRepository.update(pago.id, {
+          estado: PagoEstado.VENCIDO,
+        });
       }
 
-      this.logger.log(`✅ Pagos marcados como vencidos: ${overduePayments.length}`);
+      this.logger.log(
+        `✅ Pagos marcados como vencidos: ${overduePayments.length}`,
+      );
     } catch (error) {
       this.logger.error('❌ Error actualizando pagos vencidos:', error);
     }
@@ -106,32 +114,42 @@ export class NotificationsService {
   async sendPaymentReminder(pago: Pago) {
     try {
       const emailContent = this.getPaymentReminderTemplate(pago);
-      
+
       await this.emailService.sendEmail(
         pago.contrato.inquilino.correo,
         '💰 Recordatorio de Pago - Arrendando',
-        emailContent
+        emailContent,
       );
-      
-      this.logger.log(`📧 Recordatorio de pago enviado a: ${pago.contrato.inquilino.correo}`);
+
+      this.logger.log(
+        `📧 Recordatorio de pago enviado a: ${pago.contrato.inquilino.correo}`,
+      );
     } catch (error) {
-      this.logger.error(`❌ Error enviando recordatorio de pago a ${pago.contrato.inquilino.correo}:`, error);
+      this.logger.error(
+        `❌ Error enviando recordatorio de pago a ${pago.contrato.inquilino.correo}:`,
+        error,
+      );
     }
   }
 
   async sendContractExpirationReminder(contrato: Contrato) {
     try {
       const emailContent = this.getContractExpirationTemplate(contrato);
-      
+
       await this.emailService.sendEmail(
         contrato.inquilino.correo,
         '📄 Recordatorio de Vencimiento de Contrato - Arrendando',
-        emailContent
+        emailContent,
       );
-      
-      this.logger.log(`📧 Recordatorio de vencimiento enviado a: ${contrato.inquilino.correo}`);
+
+      this.logger.log(
+        `📧 Recordatorio de vencimiento enviado a: ${contrato.inquilino.correo}`,
+      );
     } catch (error) {
-      this.logger.error(`❌ Error enviando recordatorio de vencimiento a ${contrato.inquilino.correo}:`, error);
+      this.logger.error(
+        `❌ Error enviando recordatorio de vencimiento a ${contrato.inquilino.correo}:`,
+        error,
+      );
     }
   }
 
@@ -164,7 +182,8 @@ export class NotificationsService {
 
   private getPaymentReminderTemplate(pago: Pago): string {
     const daysUntilDue = Math.ceil(
-      (new Date(pago.fechaPagoEsperada).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+      (new Date(pago.fechaPagoEsperada).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24),
     );
 
     return `
@@ -376,13 +395,17 @@ export class NotificationsService {
               </div>
             </div>
             
-            ${daysUntilDue <= 1 ? `
+            ${
+              daysUntilDue <= 1
+                ? `
             <div class="urgency">
               <div class="urgency-title">⚠️ URGENTE</div>
               <div>Tu pago vence ${daysUntilDue === 0 ? 'HOY' : 'MAÑANA'}. 
               Por favor realiza el pago lo antes posible.</div>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <div class="message">
               Para realizar tu pago, por favor contacta con la administración o utiliza 
@@ -407,7 +430,8 @@ export class NotificationsService {
 
   private getContractExpirationTemplate(contrato: Contrato): string {
     const monthsUntilExpiration = Math.ceil(
-      (new Date(contrato.fechaFin).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24 * 30)
+      (new Date(contrato.fechaFin).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24 * 30),
     );
 
     return `

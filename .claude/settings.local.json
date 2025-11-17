@@ -16,7 +16,8 @@
       "Bash(timeout:*)",
       "Bash(npm run lint)",
       "Bash(cmd /c:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx nest build:*)"
     ],
     "deny": [],
     "ask": []

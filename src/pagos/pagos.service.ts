@@ -126,6 +126,7 @@ export class PagosService {
     }
 
     return await this.pagoRepository.save(pago);
+    
   }
 
   async verificarPagosVencidos(): Promise<{
@@ -203,7 +204,38 @@ export class PagosService {
 
   async remove(id: string): Promise<void> {
     const pago = await this.findOne(id);
+
+    // Prevent deleting payments that are already paid or overdue
+    if (pago.estado === PagoEstado.PAGADO || pago.estado === PagoEstado.VENCIDO) {
+      throw new BadRequestException(
+        `No se puede eliminar un pago en estado ${pago.estado}. Solo se pueden eliminar pagos pendientes.`,
+      );
+    }
+
     await this.pagoRepository.remove(pago);
+  }
+
+  /**
+   * Eliminar pagos pendientes asociados a un contrato.
+   * Devuelve la cantidad de pagos eliminados.
+   */
+  async removePendingByContrato(contratoId: string): Promise<number> {
+    // Delete all payments for the contract except those with estado PAGADO or VENCIDO
+    const pagosAEliminar = await this.pagoRepository.find({
+      where: {
+        contratoId,
+        estado: Not(In([PagoEstado.PAGADO, PagoEstado.VENCIDO])),
+      },
+      select: ['id'],
+    });
+
+    if (!pagosAEliminar || pagosAEliminar.length === 0) {
+      return 0;
+    }
+
+    const ids = pagosAEliminar.map((p) => p.id);
+    const result = await this.pagoRepository.delete(ids);
+    return (result.affected as number) || ids.length;
   }
 
   async buscar(filtros: {

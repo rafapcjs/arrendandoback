@@ -10,6 +10,7 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Property } from '../../properties/entities/property.entity';
+import { User } from '../../auth/entities/user.entity';
 
 export enum ContratoEstado {
   BORRADOR = 'BORRADOR',
@@ -62,6 +63,14 @@ export class Contrato {
   @ManyToOne(() => Property, { eager: true })
   @JoinColumn({ name: 'inmuebleId' })
   inmueble: Property;
+
+  @ApiProperty({ description: 'Usuario que creó el contrato' })
+  @ManyToOne(() => User, (user) => user.contratosCreados, { nullable: true })
+  @JoinColumn({ name: 'creadoPorId' })
+  creadoPor: Promise<User>;
+
+  @Column({ type: 'uuid', nullable: true })
+  creadoPorId: string;
 
   @ApiProperty({ description: 'Fecha de creación del registro' })
   @CreateDateColumn()

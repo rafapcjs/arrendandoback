@@ -87,10 +87,16 @@ export class ContratosService {
     if (estado === ContratoEstado.ACTIVO) {
       await this.propertyRepository.update(inmuebleId, { disponible: false });
       await this.tenantRepository.update(inquilinoId, { disponible: false });
-      
+
       // Generate monthly payments for the contract duration
-      const mesesDuracion = this.calcularMesesDuracion(new Date(fechaInicio), new Date(fechaFin));
-      await this.pagosService.crearPagosMensuales(savedContrato.id, mesesDuracion);
+      const mesesDuracion = this.calcularMesesDuracion(
+        new Date(fechaInicio),
+        new Date(fechaFin),
+      );
+      await this.pagosService.crearPagosMensuales(
+        savedContrato.id,
+        mesesDuracion,
+      );
     }
 
     return savedContrato;
@@ -101,20 +107,20 @@ export class ContratosService {
     const añoInicio = fechaInicio.getFullYear();
     const mesInicio = fechaInicio.getMonth(); // 0-11
     const diaInicio = fechaInicio.getDate();
-    
+
     const añoFin = fechaFin.getFullYear();
     const mesFin = fechaFin.getMonth(); // 0-11
     const diaFin = fechaFin.getDate();
-    
+
     // Calcular diferencia total en meses
     let mesesDiferencia = (añoFin - añoInicio) * 12 + (mesFin - mesInicio);
-    
+
     // Si el día de fin es mayor o igual al día de inicio, contar ese mes completo
     // Ejemplo: 2025-01-01 a 2025-06-30 = 6 meses (enero, febrero, marzo, abril, mayo, junio)
     if (diaFin >= diaInicio) {
       mesesDiferencia += 1;
     }
-    
+
     // Asegurar que sea al menos 1 mes si las fechas son válidas
     return Math.max(1, mesesDiferencia);
   }
@@ -261,9 +267,11 @@ export class ContratosService {
     }
 
     // Handle state changes and date changes
-    const fechasChanged = updateContratoDto.fechaInicio || updateContratoDto.fechaFin;
-    const estadoChanged = updateContratoDto.estado && updateContratoDto.estado !== contrato.estado;
-    
+    const fechasChanged =
+      updateContratoDto.fechaInicio || updateContratoDto.fechaFin;
+    const estadoChanged =
+      updateContratoDto.estado && updateContratoDto.estado !== contrato.estado;
+
     if (estadoChanged) {
       const propertyId = updateContratoDto.inmuebleId || contrato.inmuebleId;
 
@@ -272,10 +280,14 @@ export class ContratosService {
         const tenantId = updateContratoDto.inquilinoId || contrato.inquilinoId;
         await this.propertyRepository.update(propertyId, { disponible: false });
         await this.tenantRepository.update(tenantId, { disponible: false });
-        
+
         // Generate payments for the contract duration
-        const fechaInicio = new Date(updateContratoDto.fechaInicio || contrato.fechaInicio);
-        const fechaFin = new Date(updateContratoDto.fechaFin || contrato.fechaFin);
+        const fechaInicio = new Date(
+          updateContratoDto.fechaInicio || contrato.fechaInicio,
+        );
+        const fechaFin = new Date(
+          updateContratoDto.fechaFin || contrato.fechaFin,
+        );
         const mesesDuracion = this.calcularMesesDuracion(fechaInicio, fechaFin);
         await this.pagosService.crearPagosMensuales(id, mesesDuracion);
       }
@@ -286,14 +298,27 @@ export class ContratosService {
         updateContratoDto.estado !== ContratoEstado.ACTIVO
       ) {
         await this.propertyRepository.update(propertyId, { disponible: true });
-        await this.tenantRepository.update(contrato.inquilinoId, { disponible: true });
+        await this.tenantRepository.update(contrato.inquilinoId, {
+          disponible: true,
+        });
+
+        // Al finalizar/cambiar estado desde ACTIVO, eliminar pagos pendientes asociados
+        await this.pagosService.removePendingByContrato(id);
       }
     }
-    
+
     // If dates changed and contract is ACTIVO, regenerate payments
-    if (fechasChanged && (contrato.estado === ContratoEstado.ACTIVO || updateContratoDto.estado === ContratoEstado.ACTIVO)) {
-      const fechaInicio = new Date(updateContratoDto.fechaInicio || contrato.fechaInicio);
-      const fechaFin = new Date(updateContratoDto.fechaFin || contrato.fechaFin);
+    if (
+      fechasChanged &&
+      (contrato.estado === ContratoEstado.ACTIVO ||
+        updateContratoDto.estado === ContratoEstado.ACTIVO)
+    ) {
+      const fechaInicio = new Date(
+        updateContratoDto.fechaInicio || contrato.fechaInicio,
+      );
+      const fechaFin = new Date(
+        updateContratoDto.fechaFin || contrato.fechaFin,
+      );
       const mesesDuracion = this.calcularMesesDuracion(fechaInicio, fechaFin);
       await this.pagosService.crearPagosMensuales(id, mesesDuracion);
     }
@@ -306,15 +331,16 @@ export class ContratosService {
 
   async remove(id: string): Promise<void> {
     const contrato = await this.findOne(id);
-
-    // Only allow deletion if contract is not ACTIVO
+    // Si el contrato está ACTIVO, primero lo finalizamos para
+    // generar la limpieza de pagos pendientes y liberar recursos.
     if (contrato.estado === ContratoEstado.ACTIVO) {
-      throw new BadRequestException(
-        'No se puede eliminar un contrato activo. Debe finalizar o cambiar el estado del contrato primero.'
-      );
+      await this.finalizarContrato(id);
     }
 
-    // Make property and tenant available again when deleting the contract
+    // Eliminar pagos pendientes asociados al contrato (no se tocan pagados ni vencidos)
+    await this.pagosService.removePendingByContrato(id);
+
+    // Asegurar que la propiedad y el inquilino queden disponibles
     await this.propertyRepository.update(contrato.inmuebleId, {
       disponible: true,
     });
@@ -322,7 +348,80 @@ export class ContratosService {
       disponible: true,
     });
 
-    await this.contratoRepository.delete(id);
+    // Mantener registro histórico: marcar contrato como VENCIDO
+    await this.contratoRepository.update(id, {
+      estado: ContratoEstado.VENCIDO,
+    });
+  }
+
+  async finalizarContrato(id: string): Promise<Contrato> {
+    const contrato = await this.findOne(id);
+
+    // Only allow finalization of ACTIVO or PROXIMO_VENCER contracts
+    if (
+      contrato.estado !== ContratoEstado.ACTIVO &&
+      contrato.estado !== ContratoEstado.PROXIMO_VENCER
+    ) {
+      throw new BadRequestException(
+        'Solo se pueden finalizar contratos activos o próximos a vencer',
+      );
+    }
+
+  // Eliminar pagos pendientes asociados al contrato (no se tocan pagados ni vencidos)
+  await this.pagosService.removePendingByContrato(id);
+
+    // Update contract status to FINALIZADO
+    await this.contratoRepository.update(id, {
+      estado: ContratoEstado.FINALIZADO,
+    });
+
+    // Make property and tenant available again
+    await this.propertyRepository.update(contrato.inmuebleId, {
+      disponible: true,
+    });
+    await this.tenantRepository.update(contrato.inquilinoId, {
+      disponible: true,
+    });
+
+    return this.findOne(id);
+  }
+
+  
+
+  async marcarComoVencido(id: string): Promise<Contrato> {
+    const contrato = await this.findOne(id);
+
+    // Only allow marking as expired if contract end date has passed
+    const today = new Date();
+    const fechaFin = new Date(contrato.fechaFin);
+
+    if (fechaFin > today) {
+      throw new BadRequestException(
+        'No se puede marcar como vencido un contrato que aún no ha llegado a su fecha de fin',
+      );
+    }
+
+    // Don't update status if already finalized
+    if (contrato.estado === ContratoEstado.FINALIZADO) {
+      throw new BadRequestException(
+        'No se puede cambiar el estado de un contrato finalizado',
+      );
+    }
+
+    // Update contract status to VENCIDO but keep it in the system
+    await this.contratoRepository.update(id, {
+      estado: ContratoEstado.VENCIDO,
+    });
+
+    // When contract expires, make property and tenant available again
+    await this.propertyRepository.update(contrato.inmuebleId, {
+      disponible: true,
+    });
+    await this.tenantRepository.update(contrato.inquilinoId, {
+      disponible: true,
+    });
+
+    return this.findOne(id);
   }
 
   async getActiveContracts(): Promise<Contrato[]> {

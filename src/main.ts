@@ -40,6 +40,8 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3019;
   await app.listen(port);
   console.log(`🚀 Aplicación corriendo en http://localhost:${port}`);
-  console.log(`📖 Documentación API disponible en http://localhost:${port}/api/docs`);
+  console.log(
+    `📖 Documentación API disponible en http://localhost:${port}/api/docs`,
+  );
 }
 void bootstrap();

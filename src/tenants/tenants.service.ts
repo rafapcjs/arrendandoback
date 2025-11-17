@@ -11,7 +11,10 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { PaginationDto } from '../auth/dto/pagination.dto';
 import { PaginatedTenantDto } from './dto/paginated-tenant.dto';
 import { SearchTenantDto } from './dto/search-tenant.dto';
-import { Contrato, ContratoEstado } from '../contratos/entities/contrato.entity';
+import {
+  Contrato,
+  ContratoEstado,
+} from '../contratos/entities/contrato.entity';
 
 @Injectable()
 export class TenantsService {
@@ -148,7 +151,7 @@ export class TenantsService {
 
   async activate(id: string, isActive: boolean): Promise<Tenant> {
     const tenant = await this.findOne(id);
-    
+
     // Si se está intentando desactivar el inquilino, verificar que no tenga contratos activos
     if (!isActive && tenant.isActive) {
       const activeContracts = await this.contratoRepository.find({
@@ -160,11 +163,11 @@ export class TenantsService {
 
       if (activeContracts.length > 0) {
         throw new ConflictException(
-          'No se puede desactivar el inquilino porque tiene contratos activos'
+          'No se puede desactivar el inquilino porque tiene contratos activos',
         );
       }
     }
-    
+
     await this.tenantRepository.update(id, { isActive });
     return this.findOne(id);
   }

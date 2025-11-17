@@ -18,29 +18,29 @@ export class EmailService {
       },
       // Configuración para Render
       connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 30000,   // 30 seconds
-      socketTimeout: 60000,     // 60 seconds
+      greetingTimeout: 30000, // 30 seconds
+      socketTimeout: 60000, // 60 seconds
       // Pool configuration para mejor rendimiento
       pool: true,
       maxConnections: 1,
       maxMessages: 3,
       // Rate limiting
-      rateDelta: 20000,  // 20 seconds
-      rateLimit: 5,      // 5 emails per rateDelta
+      rateDelta: 20000, // 20 seconds
+      rateLimit: 5, // 5 emails per rateDelta
       // TLS options
       tls: {
         rejectUnauthorized: false,
-        ciphers: 'SSLv3'
+        ciphers: 'SSLv3',
       },
       // Debug options
       debug: this.configService.get<string>('NODE_ENV') !== 'production',
-      logger: this.configService.get<string>('NODE_ENV') !== 'production'
+      logger: this.configService.get<string>('NODE_ENV') !== 'production',
     };
 
     this.logger.log('Configurando transporter SMTP...', {
       host: smtpConfig.host,
       port: smtpConfig.port,
-      user: smtpConfig.auth.user ? '***' : 'no configurado'
+      user: smtpConfig.auth.user ? '***' : 'no configurado',
     });
 
     this.transporter = nodemailer.createTransport(smtpConfig);
@@ -62,7 +62,7 @@ export class EmailService {
     to: string,
     subject: string,
     html: string,
-    retries: number = 3
+    retries: number = 3,
   ): Promise<void> {
     const mailOptions = {
       from: this.configService.get<string>(
@@ -82,27 +82,32 @@ export class EmailService {
         this.logger.log(`Email enviado exitosamente (intento ${attempt}):`, {
           messageId: result.messageId,
           to: to,
-          subject: subject
+          subject: subject,
         });
         return;
       } catch (error) {
-        this.logger.error(`Error enviando email (intento ${attempt}/${retries}):`, {
-          error: error.message,
-          code: error.code,
-          command: error.command,
-          to: to,
-          subject: subject
-        });
+        this.logger.error(
+          `Error enviando email (intento ${attempt}/${retries}):`,
+          {
+            error: error.message,
+            code: error.code,
+            command: error.command,
+            to: to,
+            subject: subject,
+          },
+        );
 
         if (attempt === retries) {
           // Si es el último intento, lanzar el error
-          throw new Error(`Error enviando el correo después de ${retries} intentos: ${error.message}`);
+          throw new Error(
+            `Error enviando el correo después de ${retries} intentos: ${error.message}`,
+          );
         }
 
         // Esperar antes del siguiente intento (backoff exponencial)
         const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
         this.logger.log(`Esperando ${delay}ms antes del siguiente intento...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
@@ -114,7 +119,7 @@ export class EmailService {
     await this.sendEmail(
       to,
       '🔐 Recuperación de Contraseña - Arrendando Admin',
-      this.getPasswordRecoveryTemplate(newPassword)
+      this.getPasswordRecoveryTemplate(newPassword),
     );
   }
 
@@ -128,11 +133,11 @@ export class EmailService {
       'ADMIN_EMAIL',
       'rafaelcorredorgambin1@gmail.com',
     );
-    
+
     await this.sendEmail(
       adminEmail,
       `📞 Nuevo Mensaje de Contacto de ${name} - Arrendando`,
-      this.getContactFormTemplate(name, email, phone, message)
+      this.getContactFormTemplate(name, email, phone, message),
     );
   }
 
@@ -395,7 +400,12 @@ export class EmailService {
     `;
   }
 
-  private getContactFormTemplate(name: string, email: string, phone: string, message: string): string {
+  private getContactFormTemplate(
+    name: string,
+    email: string,
+    phone: string,
+    message: string,
+  ): string {
     return `
       <!DOCTYPE html>
       <html lang="es">

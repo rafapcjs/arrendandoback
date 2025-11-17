@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../auth/entities/user.entity';
 
 @Entity('tenants')
 export class Tenant {
@@ -40,6 +43,13 @@ export class Tenant {
 
   @Column({ default: true })
   disponible: boolean;
+
+  @ManyToOne(() => User, (user) => user.inquilinosCreados, { nullable: true })
+  @JoinColumn({ name: 'creadoPorId' })
+  creadoPor: Promise<User>;
+
+  @Column({ type: 'uuid', nullable: true })
+  creadoPorId: string;
 
   @CreateDateColumn()
   createdAt: Date;

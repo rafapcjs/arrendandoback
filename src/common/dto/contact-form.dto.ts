@@ -34,13 +34,16 @@ export class ContactFormDto {
 
   @ApiProperty({
     description: 'Mensaje o consulta que desea enviar',
-    example: 'Hola, me gustaría obtener más información sobre sus servicios de arrendamiento...',
+    example:
+      'Hola, me gustaría obtener más información sobre sus servicios de arrendamiento...',
     minLength: 10,
     maxLength: 1000,
   })
   @IsNotEmpty({ message: 'El mensaje es requerido' })
   @IsString({ message: 'El mensaje debe ser una cadena de texto' })
-  @Length(10, 1000, { message: 'El mensaje debe tener entre 10 y 1000 caracteres' })
+  @Length(10, 1000, {
+    message: 'El mensaje debe tener entre 10 y 1000 caracteres',
+  })
   message: string;
 }
 
@@ -53,7 +56,8 @@ export class ContactFormResponseDto {
 
   @ApiProperty({
     description: 'Mensaje de respuesta para el usuario',
-    example: 'Tu mensaje ha sido enviado exitosamente. Te contactaremos pronto.',
+    example:
+      'Tu mensaje ha sido enviado exitosamente. Te contactaremos pronto.',
   })
   message: string;
 }
