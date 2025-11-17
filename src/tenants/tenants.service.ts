@@ -25,7 +25,7 @@ export class TenantsService {
     private contratoRepository: Repository<Contrato>,
   ) {}
 
-  async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
+  async create(createTenantDto: CreateTenantDto, userId: string): Promise<Tenant> {
     // Verificar si ya existe un inquilino con la misma cédula
     const existingTenantByCedula = await this.tenantRepository.findOne({
       where: { cedula: createTenantDto.cedula },
@@ -44,7 +44,10 @@ export class TenantsService {
       throw new ConflictException('Ya existe un inquilino con este correo');
     }
 
-    const tenant = this.tenantRepository.create(createTenantDto);
+    const tenant = this.tenantRepository.create({
+      ...createTenantDto,
+      creadoPorId: userId,
+    });
     return this.tenantRepository.save(tenant);
   }
 

@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   ParseEnumPipe,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -36,8 +37,11 @@ export class PagosController {
   @ApiOperation({ summary: 'Crear un nuevo pago' })
   @ApiResponse({ status: 201, description: 'Pago creado exitosamente', type: Pago })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  create(@Body() createPagoDto: CreatePagoDto): Promise<Pago> {
-    return this.pagosService.crearPago(createPagoDto);
+  create(
+    @Body() createPagoDto: CreatePagoDto,
+    @Request() req,
+  ): Promise<Pago> {
+    return this.pagosService.crearPago(createPagoDto, req.user.id);
   }
 
   @Get()

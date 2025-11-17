@@ -10,6 +10,7 @@ import {
   HttpStatus,
   HttpCode,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -57,8 +58,11 @@ export class TenantsController {
     status: 403,
     description: 'Permisos insuficientes',
   })
-  create(@Body() createTenantDto: CreateTenantDto): Promise<Tenant> {
-    return this.tenantsService.create(createTenantDto);
+  create(
+    @Body() createTenantDto: CreateTenantDto,
+    @Request() req,
+  ): Promise<Tenant> {
+    return this.tenantsService.create(createTenantDto, req.user.id);
   }
 
   @Get()

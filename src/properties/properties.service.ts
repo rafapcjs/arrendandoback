@@ -25,9 +25,12 @@ export class PropertiesService {
     private readonly contratoRepository: Repository<Contrato>,
   ) {}
 
-  async create(createPropertyDto: CreatePropertyDto): Promise<Property> {
+  async create(createPropertyDto: CreatePropertyDto, userId: string): Promise<Property> {
     try {
-      const property = this.propertyRepository.create(createPropertyDto);
+      const property = this.propertyRepository.create({
+        ...createPropertyDto,
+        creadoPorId: userId,
+      });
       return await this.propertyRepository.save(property);
     } catch (error) {
       if (error.code === '23505') {

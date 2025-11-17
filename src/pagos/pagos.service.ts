@@ -20,7 +20,7 @@ export class PagosService {
     private readonly contratoRepository: Repository<Contrato>,
   ) {}
 
-  async crearPago(createPagoDto: CreatePagoDto): Promise<Pago> {
+  async crearPago(createPagoDto: CreatePagoDto, userId?: string): Promise<Pago> {
     // Verificar que el contrato existe
     const contrato = await this.contratoRepository.findOne({
       where: { id: createPagoDto.contratoId },
@@ -44,6 +44,7 @@ export class PagosService {
       fechaPagoEsperada,
       estado: PagoEstado.PENDIENTE,
       montoAbonado: 0,
+      registradoPorId: userId,
     });
 
     return await this.pagoRepository.save(pago);

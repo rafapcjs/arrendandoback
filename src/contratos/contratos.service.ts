@@ -30,7 +30,7 @@ export class ContratosService {
     private pagosService: PagosService,
   ) {}
 
-  async create(createContratoDto: CreateContratoDto): Promise<Contrato> {
+  async create(createContratoDto: CreateContratoDto, userId: string): Promise<Contrato> {
     const { inquilinoId, inmuebleId, fechaInicio, fechaFin, estado } =
       createContratoDto;
 
@@ -80,7 +80,10 @@ export class ContratosService {
     }
 
     // Create contract
-    const contrato = this.contratoRepository.create(createContratoDto);
+    const contrato = this.contratoRepository.create({
+      ...createContratoDto,
+      creadoPorId: userId,
+    });
     const savedContrato = await this.contratoRepository.save(contrato);
 
     // If contract is being set to ACTIVO, mark property and tenant as not available and generate monthly payments

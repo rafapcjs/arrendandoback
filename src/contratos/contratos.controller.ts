@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   HttpStatus,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -54,8 +55,11 @@ export class ContratosController {
     status: HttpStatus.CONFLICT,
     description: 'El inmueble no está disponible',
   })
-  create(@Body() createContratoDto: CreateContratoDto): Promise<Contrato> {
-    return this.contratosService.create(createContratoDto);
+  create(
+    @Body() createContratoDto: CreateContratoDto,
+    @Request() req,
+  ): Promise<Contrato> {
+    return this.contratosService.create(createContratoDto, req.user.id);
   }
 
   @Get()
