@@ -6,12 +6,14 @@ import * as nodemailer from 'nodemailer';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter;
+  private smtpBaseConfig: any;
+  private preferredPorts: number[];
 
   constructor(private configService: ConfigService) {
-    const smtpConfig = {
+    // Base SMTP configuration (port is tried dynamically below)
+    this.smtpBaseConfig = {
       host: this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com'),
-      port: this.configService.get<number>('SMTP_PORT', 587),
-      secure: false, // true for 465, false for other ports
+      secure: false, // Render typically blocks 465; use non-secure with TLS
       auth: {
         user: this.configService.get<string>('SMTP_USER'),
         pass: this.configService.get<string>('SMTP_PASS'),
@@ -37,25 +39,55 @@ export class EmailService {
       logger: this.configService.get<string>('NODE_ENV') !== 'production',
     };
 
-    this.logger.log('Configurando transporter SMTP...', {
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      user: smtpConfig.auth.user ? '***' : 'no configurado',
+    // Determine preferred ports: if SMTP_PORT is explicitly set, use it first,
+    // otherwise try common Render-friendly ports in order.
+    const envPort = this.configService.get<number>('SMTP_PORT');
+    if (envPort) {
+      this.preferredPorts = [envPort];
+    } else {
+      this.preferredPorts = [2525, 8025, 25, 587];
+    }
+
+    this.logger.log('Configurando transporter SMTP (prueba de puertos)...', {
+      host: this.smtpBaseConfig.host,
+      ports: this.preferredPorts,
+      user: this.smtpBaseConfig.auth.user ? '***' : 'no configurado',
     });
 
-    this.transporter = nodemailer.createTransport(smtpConfig);
+    // Create an initial transporter using the first preferred port; verifyConnection
+    // will try fallbacks if needed.
+    this.transporter = nodemailer.createTransport({
+      ...this.smtpBaseConfig,
+      port: this.preferredPorts[0],
+    });
 
-    // Verificar configuración
+    // Verificar configuración y probar puertos alternativos si hay fallos
     this.verifyConnection();
   }
 
   private async verifyConnection(): Promise<void> {
-    try {
-      await this.transporter.verify();
-      this.logger.log('Conexión SMTP verificada exitosamente');
-    } catch (error) {
-      this.logger.error('Error verificando conexión SMTP:', error.message);
+    // Try the list of preferred ports until one succeeds.
+    for (const port of this.preferredPorts) {
+      const testConfig = { ...this.smtpBaseConfig, port };
+      const testTransporter = nodemailer.createTransport(testConfig);
+
+      try {
+        await testTransporter.verify();
+        this.transporter = testTransporter;
+        this.logger.log('Conexión SMTP verificada exitosamente', { port });
+        return;
+      } catch (error) {
+        this.logger.warn(`No se pudo conectar al puerto ${port}: ${error.message}`);
+        // continue to next port
+      }
     }
+
+    // If we reach here, none of the ports worked. Log an error and keep the
+    // last transporter (it will fail on send, where retries/backoff exist).
+    this.logger.error(
+      'Error verificando conexión SMTP en todos los puertos probados',
+      { triedPorts: this.preferredPorts },
+    );
   }
 
   async sendEmail(

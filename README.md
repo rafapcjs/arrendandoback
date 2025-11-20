@@ -124,6 +124,21 @@ NODE_ENV=development
 PORT=3013
 ```
 
+Se añaden las variables necesarias para configurar el envío SMTP:
+
+```bash
+# SMTP (correo)
+SMTP_HOST=smtp.example.com     # host del proveedor SMTP
+SMTP_PORT=2525                # puerto alternativo recomendado para Render (2525, 8025 o 25)
+SMTP_USER=usuario@correo.com  # usuario SMTP
+SMTP_PASS=supersecret         # contraseña SMTP
+SMTP_FROM="noreply@arrendando.com"  # remitente por defecto
+```
+
+Nota para despliegue en Render:
+- Render suele bloquear el puerto 465/587 para servicios salientes. Use un puerto alternativo como `2525`. En el panel de Render, vaya a la sección de Environment Variables y establezca `SMTP_PORT=2525` (o `8025`/`25` si su proveedor lo requiere).
+- No cambie la lógica de la app: el servicio intentará automáticamente los puertos `2525`, `8025`, `25` (en ese orden) si no se especifica `SMTP_PORT`.
+
 ### Comandos de Desarrollo
 ```bash
 # Instalar dependencias
