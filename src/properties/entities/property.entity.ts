@@ -40,6 +40,14 @@ export class Property {
   @Column({ type: 'text', nullable: true })
   descripcion: string;
 
+  @ApiProperty({ description: 'URL de la foto del inmueble', required: false })
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  fotoUrl: string;
+
+  @ApiProperty({ description: 'Public ID de la foto en Cloudinary', required: false })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  fotoPublicId: string;
+
   @ApiProperty({ description: 'Usuario que creó la propiedad' })
   @ManyToOne(() => User, (user) => user.propiedadesCreadas, { nullable: true })
   @JoinColumn({ name: 'creadoPorId' })

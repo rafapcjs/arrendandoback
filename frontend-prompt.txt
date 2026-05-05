@@ -1,0 +1,46 @@
+Frontend - Implementacion de foto en propiedades
+
+Objetivo
+- En el registro y edicion de inmuebles, enviar una sola foto (JPG/PNG) junto con los demas campos.
+- En listados y detalle, mostrar la imagen usando fotoUrl.
+
+Endpoints
+- POST /properties
+- PATCH /properties/:id
+- GET /properties
+- GET /properties/search
+
+Formato de envio
+- Content-Type: multipart/form-data
+- Campo de archivo: foto (una sola imagen)
+- Campos obligatorios:
+  - direccion
+  - codigoServicioAgua
+  - codigoServicioGas
+  - codigoServicioLuz
+- Campos opcionales:
+  - descripcion
+  - disponible
+
+Respuesta
+- Las respuestas incluyen fotoUrl para mostrar la imagen.
+
+Ejemplo (JS)
+
+const formData = new FormData();
+formData.append('direccion', direccion);
+formData.append('codigoServicioAgua', codigoServicioAgua);
+formData.append('codigoServicioGas', codigoServicioGas);
+formData.append('codigoServicioLuz', codigoServicioLuz);
+formData.append('descripcion', descripcion ?? '');
+formData.append('foto', file); // JPG o PNG
+
+await fetch('/properties', {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}` },
+  body: formData,
+});
+
+Notas
+- En edicion (PATCH), enviar foto solo si se quiere reemplazar.
+- Mostrar la imagen con fotoUrl en listados y detalle.

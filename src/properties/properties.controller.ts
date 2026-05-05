@@ -11,6 +11,9 @@ import {
   HttpCode,
   UseGuards,
   Request,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +22,8 @@ import {
   ApiParam,
   ApiQuery,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
@@ -31,6 +36,26 @@ import { Property } from './entities/property.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+
+const fileUploadOptions = {
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (
+    _req: unknown,
+    file: Express.Multer.File,
+    callback: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.mimetype)) {
+      return callback(
+        new BadRequestException('Solo se permiten imagenes JPG, PNG o WEBP'),
+        false,
+      );
+    }
+
+    return callback(null, true);
+  },
+};
 
 @ApiTags('Gestión de Inmuebles')
 @ApiBearerAuth('JWT-auth')
@@ -41,8 +66,30 @@ export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
+  @UseInterceptors(FileInterceptor('foto', fileUploadOptions))
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Crear un nuevo inmueble (Solo ADMIN)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        foto: { type: 'string', format: 'binary' },
+        direccion: { type: 'string' },
+        codigoServicioAgua: { type: 'string' },
+        codigoServicioGas: { type: 'string' },
+        codigoServicioLuz: { type: 'string' },
+        disponible: { type: 'boolean' },
+        descripcion: { type: 'string' },
+      },
+      required: [
+        'direccion',
+        'codigoServicioAgua',
+        'codigoServicioGas',
+        'codigoServicioLuz',
+      ],
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Inmueble creado exitosamente',
@@ -57,10 +104,11 @@ export class PropertiesController {
     description: 'Permisos insuficientes',
   })
   create(
+    @UploadedFile() foto: Express.Multer.File | undefined,
     @Body() createPropertyDto: CreatePropertyDto,
     @Request() req,
   ): Promise<Property> {
-    return this.propertiesService.create(createPropertyDto, req.user.id);
+    return this.propertiesService.create(createPropertyDto, req.user.id, foto);
   }
 
   @Get()
@@ -163,8 +211,24 @@ export class PropertiesController {
   }
 
   @Patch(':id')
+  @UseInterceptors(FileInterceptor('foto', fileUploadOptions))
   @ApiOperation({ summary: 'Actualizar inmueble por ID (Solo ADMIN)' })
   @ApiParam({ name: 'id', description: 'UUID del inmueble' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        foto: { type: 'string', format: 'binary' },
+        direccion: { type: 'string' },
+        codigoServicioAgua: { type: 'string' },
+        codigoServicioGas: { type: 'string' },
+        codigoServicioLuz: { type: 'string' },
+        disponible: { type: 'boolean' },
+        descripcion: { type: 'string' },
+      },
+    },
+  })
   @ApiResponse({
     status: 200,
     description: 'Inmueble actualizado exitosamente',
@@ -184,9 +248,10 @@ export class PropertiesController {
   })
   update(
     @Param('id') id: string,
+    @UploadedFile() foto: Express.Multer.File | undefined,
     @Body() updatePropertyDto: UpdatePropertyDto,
   ): Promise<Property> {
-    return this.propertiesService.update(id, updatePropertyDto);
+    return this.propertiesService.update(id, updatePropertyDto, foto);
   }
 
   @Patch(':id/activate')

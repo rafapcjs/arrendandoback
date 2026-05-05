@@ -4,11 +4,12 @@ import { PropertiesService } from './properties.service';
 import { PropertiesController } from './properties.controller';
 import { Property } from './entities/property.entity';
 import { Contrato } from '../contratos/entities/contrato.entity';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Property, Contrato])],
   controllers: [PropertiesController],
-  providers: [PropertiesService],
+  providers: [PropertiesService, CloudinaryService],
   exports: [PropertiesService],
 })
 export class PropertiesModule {}

@@ -15,6 +15,7 @@ import {
   Contrato,
   ContratoEstado,
 } from '../contratos/entities/contrato.entity';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class PropertiesService {
@@ -23,14 +24,34 @@ export class PropertiesService {
     private readonly propertyRepository: Repository<Property>,
     @InjectRepository(Contrato)
     private readonly contratoRepository: Repository<Contrato>,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async create(createPropertyDto: CreatePropertyDto, userId: string): Promise<Property> {
+  async create(
+    createPropertyDto: CreatePropertyDto,
+    userId: string,
+    foto?: Express.Multer.File,
+  ): Promise<Property> {
     try {
-      const property = this.propertyRepository.create({
+      const data: CreatePropertyDto & {
+        creadoPorId: string;
+        fotoUrl?: string;
+        fotoPublicId?: string;
+      } = {
         ...createPropertyDto,
         creadoPorId: userId,
-      });
+      };
+
+      if (foto) {
+        const uploaded = await this.cloudinaryService.uploadImage(
+          foto.buffer,
+          foto.originalname,
+        );
+        data.fotoUrl = uploaded.secureUrl;
+        data.fotoPublicId = uploaded.publicId;
+      }
+
+      const property = this.propertyRepository.create(data);
       return await this.propertyRepository.save(property);
     } catch (error) {
       if (error.code === '23505') {
@@ -124,10 +145,24 @@ export class PropertiesService {
   async update(
     id: string,
     updatePropertyDto: UpdatePropertyDto,
+    foto?: Express.Multer.File,
   ): Promise<Property> {
     const property = await this.findOne(id);
 
     try {
+      if (foto) {
+        if (property.fotoPublicId) {
+          await this.cloudinaryService.deleteImage(property.fotoPublicId);
+        }
+
+        const uploaded = await this.cloudinaryService.uploadImage(
+          foto.buffer,
+          foto.originalname,
+        );
+        property.fotoUrl = uploaded.secureUrl;
+        property.fotoPublicId = uploaded.publicId;
+      }
+
       Object.assign(property, updatePropertyDto);
       return await this.propertyRepository.save(property);
     } catch (error) {
