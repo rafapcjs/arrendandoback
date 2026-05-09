@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -221,7 +222,7 @@ export class ContratosService {
     };
   }
 
-  async findOne(id: string): Promise<Contrato> {
+  async findOne(id: string, user?: RequestUser): Promise<Contrato> {
     const contrato = await this.contratoRepository.findOne({
       where: { id },
       relations: ['inquilino', 'inmueble'],
@@ -231,14 +232,19 @@ export class ContratosService {
       throw new NotFoundException('Contrato no encontrado');
     }
 
+    if (user && user.role !== Role.ADMIN && contrato.inmobiliariaId !== user.inmobiliariaId) {
+      throw new ForbiddenException('No tienes acceso a este contrato');
+    }
+
     return contrato;
   }
 
   async update(
     id: string,
     updateContratoDto: UpdateContratoDto,
+    user?: RequestUser,
   ): Promise<Contrato> {
-    const contrato = await this.findOne(id);
+    const contrato = await this.findOne(id, user);
 
     // If changing property, validate it exists and is available
     if (

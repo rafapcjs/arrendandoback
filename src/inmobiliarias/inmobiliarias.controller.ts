@@ -54,6 +54,14 @@ export class InmobiliariasController {
     return this.inmobiliariasService.findAll();
   }
 
+  @Get('disponibles')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Inmobiliarias activas sin usuario asignado (para crear usuario)' })
+  @ApiResponse({ status: 200, type: [Inmobiliaria] })
+  findDisponibles(): Promise<Inmobiliaria[]> {
+    return this.inmobiliariasService.findDisponibles();
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.INMOBILIARIA)
   @ApiOperation({ summary: 'Obtener inmobiliaria por ID' })

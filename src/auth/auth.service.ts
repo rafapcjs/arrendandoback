@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
+import { Inmobiliaria, InmobiliariaEstado } from '../inmobiliarias/entities/inmobiliaria.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -26,6 +27,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Inmobiliaria)
+    private inmobiliariaRepository: Repository<Inmobiliaria>,
     private jwtService: JwtService,
     private emailService: EmailService,
     private jwtBlacklistService: JwtBlacklistService,
@@ -154,6 +157,7 @@ export class AuthService {
         'lastName',
         'email',
         'role',
+        'inmobiliariaId',
         'isActive',
         'createdAt',
         'updatedAt',
@@ -196,6 +200,15 @@ export class AuthService {
   async activateUser(id: string, isActive: boolean): Promise<User> {
     const user = await this.findUserById(id);
     await this.usersRepository.update(id, { isActive });
+
+    // Sincronizar estado de la inmobiliaria si el usuario tiene una asignada
+    if (user.inmobiliariaId) {
+      const nuevoEstado = isActive
+        ? InmobiliariaEstado.ACTIVA
+        : InmobiliariaEstado.INACTIVA;
+      await this.inmobiliariaRepository.update(user.inmobiliariaId, { estado: nuevoEstado });
+    }
+
     return this.findUserById(id);
   }
 

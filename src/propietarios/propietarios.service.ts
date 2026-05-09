@@ -47,12 +47,16 @@ export class PropietariosService {
 
     return this.propietarioRepository.find({
       where,
+      relations: ['inmobiliaria'],
       order: { createdAt: 'DESC' },
     });
   }
 
   async findOne(id: string, user: RequestUser): Promise<Propietario> {
-    const propietario = await this.propietarioRepository.findOne({ where: { id } });
+    const propietario = await this.propietarioRepository.findOne({
+      where: { id },
+      relations: ['inmobiliaria'],
+    });
 
     if (!propietario) {
       throw new NotFoundException(`Propietario con ID ${id} no encontrado`);

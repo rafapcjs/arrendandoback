@@ -8,6 +8,12 @@ import {
   ComparisonReportDto,
 } from './dto/income-report.dto';
 
+interface RequestUser {
+  id: string;
+  role: string;
+  inmobiliariaId?: string | null;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -15,17 +21,21 @@ export class ReportsService {
     private readonly pagoRepository: Repository<Pago>,
   ) {}
 
+  private buildWhere(extra: object, user: RequestUser): object {
+    const inmobiliariaId = user.inmobiliariaId || 'no-access';
+    return { ...extra, inmobiliariaId };
+  }
+
   async getMonthlyIncomeReport(
     year: number,
     month: number,
+    user: RequestUser,
   ): Promise<MonthlyIncomeReportDto> {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
 
     const pagos = await this.pagoRepository.find({
-      where: {
-        fechaPagoEsperada: Between(startDate, endDate),
-      },
+      where: this.buildWhere({ fechaPagoEsperada: Between(startDate, endDate) }, user),
     });
 
     const totalEsperado = pagos.reduce(
@@ -57,11 +67,11 @@ export class ReportsService {
     };
   }
 
-  async getAnnualIncomeReport(year: number): Promise<AnnualIncomeReportDto> {
+  async getAnnualIncomeReport(year: number, user: RequestUser): Promise<AnnualIncomeReportDto> {
     const reporteMensual: MonthlyIncomeReportDto[] = [];
 
     for (let month = 1; month <= 12; month++) {
-      const monthlyReport = await this.getMonthlyIncomeReport(year, month);
+      const monthlyReport = await this.getMonthlyIncomeReport(year, month, user);
       reporteMensual.push(monthlyReport);
     }
 
@@ -90,14 +100,13 @@ export class ReportsService {
   async getComparisonReport(
     fechaInicio: string,
     fechaFin: string,
+    user: RequestUser,
   ): Promise<ComparisonReportDto> {
     const startDate = new Date(fechaInicio);
     const endDate = new Date(fechaFin);
 
     const pagos = await this.pagoRepository.find({
-      where: {
-        fechaPagoEsperada: Between(startDate, endDate),
-      },
+      where: this.buildWhere({ fechaPagoEsperada: Between(startDate, endDate) }, user),
     });
 
     const totalEsperado = pagos.reduce(

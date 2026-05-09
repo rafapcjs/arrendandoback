@@ -110,8 +110,9 @@ export class PagosService {
   async registrarAbono(
     id: string,
     registrarAbonoDto: RegistrarAbonoDto,
+    user?: RequestUser,
   ): Promise<Pago> {
-    const pago = await this.findOne(id);
+    const pago = await this.findOne(id, user);
 
     if (pago.estado === PagoEstado.PAGADO) {
       throw new BadRequestException('El pago ya está completamente pagado');
@@ -174,9 +175,11 @@ export class PagosService {
     });
   }
 
-  async findByContrato(contratoId: string): Promise<Pago[]> {
+  async findByContrato(contratoId: string, user: RequestUser): Promise<Pago[]> {
+    const where: any = { contratoId };
+    if (user.inmobiliariaId) where.inmobiliariaId = user.inmobiliariaId;
     return await this.pagoRepository.find({
-      where: { contratoId },
+      where,
       relations: ['contrato'],
       order: { fechaPagoEsperada: 'ASC' },
     });
@@ -194,9 +197,12 @@ export class PagosService {
     });
   }
 
-  async findOne(id: string): Promise<Pago> {
+  async findOne(id: string, user?: RequestUser): Promise<Pago> {
+    const where: any = { id };
+    if (user?.inmobiliariaId) where.inmobiliariaId = user.inmobiliariaId;
+
     const pago = await this.pagoRepository.findOne({
-      where: { id },
+      where,
       relations: ['contrato'],
     });
 
@@ -207,8 +213,8 @@ export class PagosService {
     return pago;
   }
 
-  async update(id: string, updatePagoDto: UpdatePagoDto): Promise<Pago> {
-    const pago = await this.findOne(id);
+  async update(id: string, updatePagoDto: UpdatePagoDto, user?: RequestUser): Promise<Pago> {
+    const pago = await this.findOne(id, user);
 
     if (pago.estado === PagoEstado.PAGADO) {
       throw new BadRequestException(

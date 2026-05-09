@@ -10,10 +10,11 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { Property } from '../properties/entities/property.entity';
 import { Contrato } from '../contratos/entities/contrato.entity';
 import { Pago } from '../pagos/entities/pago.entity';
+import { Inmobiliaria } from '../inmobiliarias/entities/inmobiliaria.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Tenant, Property, Contrato, Pago]),
+    TypeOrmModule.forFeature([User, Tenant, Property, Contrato, Pago, Inmobiliaria]),
     ConfigModule,
   ],
   controllers: [DashboardController, ContactController],

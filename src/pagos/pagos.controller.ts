@@ -74,16 +74,22 @@ export class PagosController {
   @ApiOperation({ summary: 'Listar pagos por contrato' })
   @ApiParam({ name: 'contratoId' })
   @ApiResponse({ status: 200, type: [Pago] })
-  findByContrato(@Param('contratoId', ParseUUIDPipe) contratoId: string): Promise<Pago[]> {
-    return this.pagosService.findByContrato(contratoId);
+  findByContrato(
+    @Param('contratoId', ParseUUIDPipe) contratoId: string,
+    @GetUser() user: any,
+  ): Promise<Pago[]> {
+    return this.pagosService.findByContrato(contratoId, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener pago por ID' })
   @ApiParam({ name: 'id' })
   @ApiResponse({ status: 200, type: Pago })
-  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Pago> {
-    return this.pagosService.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser() user: any,
+  ): Promise<Pago> {
+    return this.pagosService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -93,8 +99,9 @@ export class PagosController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updatePagoDto: UpdatePagoDto,
+    @GetUser() user: any,
   ): Promise<Pago> {
-    return this.pagosService.update(id, updatePagoDto);
+    return this.pagosService.update(id, updatePagoDto, user);
   }
 
   @Patch(':id/abono')
@@ -104,7 +111,8 @@ export class PagosController {
   registrarAbono(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() registrarAbonoDto: RegistrarAbonoDto,
+    @GetUser() user: any,
   ): Promise<Pago> {
-    return this.pagosService.registrarAbono(id, registrarAbonoDto);
+    return this.pagosService.registrarAbono(id, registrarAbonoDto, user);
   }
 }

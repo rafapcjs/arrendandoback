@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
+import { Propietario } from '../../propietarios/entities/propietario.entity';
 
 export enum InmobiliariaEstado {
   ACTIVA = 'ACTIVA',
@@ -50,6 +52,9 @@ export class Inmobiliaria {
   @ApiProperty({ required: false })
   @Column({ type: 'uuid', nullable: true })
   creadoPorId: string;
+
+  @OneToMany(() => Propietario, (propietario) => propietario.inmobiliaria)
+  propietarios: Propietario[];
 
   @ApiProperty()
   @CreateDateColumn()

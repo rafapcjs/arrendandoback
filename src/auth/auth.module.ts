@@ -9,10 +9,11 @@ import { User } from './entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { EmailService } from '../common/services/email.service';
 import { JwtBlacklistService } from '../common/services/jwt-blacklist.service';
+import { Inmobiliaria } from '../inmobiliarias/entities/inmobiliaria.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Inmobiliaria]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -6,141 +6,34 @@ import * as nodemailer from 'nodemailer';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter;
-  private smtpBaseConfig: any;
-  private preferredPorts: number[];
 
   constructor(private configService: ConfigService) {
-    // Base SMTP configuration (port is tried dynamically below)
-    this.smtpBaseConfig = {
-      host: this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com'),
-      secure: false, // Render typically blocks 465; use non-secure with TLS
-      auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
-      },
-      // Configuración para Render
-      connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 30000, // 30 seconds
-      socketTimeout: 60000, // 60 seconds
-      // Pool configuration para mejor rendimiento
-      pool: true,
-      maxConnections: 1,
-      maxMessages: 3,
-      // Rate limiting
-      rateDelta: 20000, // 20 seconds
-      rateLimit: 5, // 5 emails per rateDelta
-      // TLS options
-      tls: {
-        rejectUnauthorized: false,
-        ciphers: 'SSLv3',
-      },
-      // Debug options
-      debug: this.configService.get<string>('NODE_ENV') !== 'production',
-      logger: this.configService.get<string>('NODE_ENV') !== 'production',
-    };
+    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
+    const port = parseInt(this.configService.get<string>('SMTP_PORT', '587'), 10);
+    const user = this.configService.get<string>('SMTP_USER');
+    const pass = this.configService.get<string>('SMTP_PASS');
 
-    // Determine preferred ports: if SMTP_PORT is explicitly set, use it first,
-    // otherwise try common Render-friendly ports in order.
-    const envPort = this.configService.get<number>('SMTP_PORT');
-    if (envPort) {
-      this.preferredPorts = [envPort];
-    } else {
-      this.preferredPorts = [2525, 8025, 25, 587];
-    }
-
-    this.logger.log('Configurando transporter SMTP (prueba de puertos)...', {
-      host: this.smtpBaseConfig.host,
-      ports: this.preferredPorts,
-      user: this.smtpBaseConfig.auth.user ? '***' : 'no configurado',
-    });
-
-    // Create an initial transporter using the first preferred port; verifyConnection
-    // will try fallbacks if needed.
     this.transporter = nodemailer.createTransport({
-      ...this.smtpBaseConfig,
-      port: this.preferredPorts[0],
+      host,
+      port,
+      secure: false,
+      requireTLS: true,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
     });
 
-    // Verificar configuración y probar puertos alternativos si hay fallos
-    this.verifyConnection();
+    this.logger.log(`SMTP configurado: ${host}:${port} usuario=${user}`);
   }
 
-  private async verifyConnection(): Promise<void> {
-    // Try the list of preferred ports until one succeeds.
-    for (const port of this.preferredPorts) {
-      const testConfig = { ...this.smtpBaseConfig, port };
-      const testTransporter = nodemailer.createTransport(testConfig);
+  async sendEmail(to: string, subject: string, html: string): Promise<void> {
+    const from = this.configService.get<string>('SMTP_FROM', 'noreply@arrendando.com');
 
-      try {
-        await testTransporter.verify();
-        this.transporter = testTransporter;
-        this.logger.log('Conexión SMTP verificada exitosamente', { port });
-        return;
-      } catch (error) {
-        this.logger.warn(`No se pudo conectar al puerto ${port}: ${error.message}`);
-        // continue to next port
-      }
-    }
-
-    // If we reach here, none of the ports worked. Log an error and keep the
-    // last transporter (it will fail on send, where retries/backoff exist).
-    this.logger.error(
-      'Error verificando conexión SMTP en todos los puertos probados',
-      { triedPorts: this.preferredPorts },
-    );
-  }
-
-  async sendEmail(
-    to: string,
-    subject: string,
-    html: string,
-    retries: number = 3,
-  ): Promise<void> {
-    const mailOptions = {
-      from: this.configService.get<string>(
-        'SMTP_FROM',
-        'noreply@arrendando.com',
-      ),
-      to,
-      subject,
-      html,
-    };
-
-    this.logger.log(`Enviando email a: ${to}, Asunto: ${subject}`);
-
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        const result = await this.transporter.sendMail(mailOptions);
-        this.logger.log(`Email enviado exitosamente (intento ${attempt}):`, {
-          messageId: result.messageId,
-          to: to,
-          subject: subject,
-        });
-        return;
-      } catch (error) {
-        this.logger.error(
-          `Error enviando email (intento ${attempt}/${retries}):`,
-          {
-            error: error.message,
-            code: error.code,
-            command: error.command,
-            to: to,
-            subject: subject,
-          },
-        );
-
-        if (attempt === retries) {
-          // Si es el último intento, lanzar el error
-          throw new Error(
-            `Error enviando el correo después de ${retries} intentos: ${error.message}`,
-          );
-        }
-
-        // Esperar antes del siguiente intento (backoff exponencial)
-        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
-        this.logger.log(`Esperando ${delay}ms antes del siguiente intento...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
+    try {
+      const result = await this.transporter.sendMail({ from, to, subject, html });
+      this.logger.log(`Email enviado a ${to}: ${result.messageId}`);
+    } catch (error) {
+      this.logger.error(`Error enviando email a ${to}: ${error.message}`);
+      throw new Error(`Error enviando el correo: ${error.message}`);
     }
   }
 

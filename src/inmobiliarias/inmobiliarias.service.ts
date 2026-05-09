@@ -5,17 +5,20 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { Inmobiliaria, InmobiliariaEstado } from './entities/inmobiliaria.entity';
 import { CreateInmobiliariaDto } from './dto/create-inmobiliaria.dto';
 import { UpdateInmobiliariaDto } from './dto/update-inmobiliaria.dto';
 import { Role } from '../common/enums/roles.enum';
+import { User } from '../auth/entities/user.entity';
 
 @Injectable()
 export class InmobiliariasService {
   constructor(
     @InjectRepository(Inmobiliaria)
     private readonly inmobiliariaRepository: Repository<Inmobiliaria>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async create(dto: CreateInmobiliariaDto, userId: string): Promise<Inmobiliaria> {
@@ -47,9 +50,29 @@ export class InmobiliariasService {
     });
   }
 
+  async findDisponibles(): Promise<Inmobiliaria[]> {
+    // IDs de inmobiliarias que ya tienen un usuario INMOBILIARIA asignado
+    const usuariosConInmo = await this.userRepository.find({
+      where: { role: Role.INMOBILIARIA },
+      select: ['inmobiliariaId'],
+    });
+
+    const inmoIdsOcupadas = usuariosConInmo
+      .map((u) => u.inmobiliariaId)
+      .filter(Boolean) as string[];
+
+    const where: any = { estado: InmobiliariaEstado.ACTIVA };
+    if (inmoIdsOcupadas.length > 0) {
+      where.id = Not(In(inmoIdsOcupadas));
+    }
+
+    return this.inmobiliariaRepository.find({ where, order: { nombre: 'ASC' } });
+  }
+
   async findOne(id: string): Promise<Inmobiliaria> {
     const inmobiliaria = await this.inmobiliariaRepository.findOne({
       where: { id },
+      relations: ['propietarios'],
     });
 
     if (!inmobiliaria) {

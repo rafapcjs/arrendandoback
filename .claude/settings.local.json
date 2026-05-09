@@ -21,7 +21,8 @@
       "PowerShell($env:PGPASSWORD = 'postgres'; & 'C:\\\\Program Files\\\\PostgreSQL\\\\16\\\\bin\\\\psql.exe' -U postgres -h localhost -tc \"DROP DATABASE IF EXISTS arrendando_dev;\" 2>&1)",
       "PowerShell($env:DATABASE_URL = \"postgresql://neondb_owner:npg_lQE0IkFNP9wD@ep-divine-firefly-ad4984m7-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\"; psql $env:DATABASE_URL -c \"SELECT indexname FROM pg_indexes WHERE schemaname = 'public';\")",
       "Bash(node *)",
-      "PowerShell(npm run *)"
+      "PowerShell(npm run *)",
+      "PowerShell($env:SMTP_PORT; $env:SMTP_HOST; $env:SMTP_PASS)"
     ],
     "deny": [],
     "ask": []
