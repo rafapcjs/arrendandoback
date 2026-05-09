@@ -79,6 +79,22 @@ export class Contrato {
   @Column({ type: 'uuid', nullable: true })
   creadoPorId: string;
 
+  @ApiProperty({
+    description: 'Documentos de respaldo del contrato (cédulas, PDFs, etc.)',
+    type: 'array',
+    required: false,
+  })
+  @Column({ type: 'jsonb', default: [] })
+  documentos: {
+    docId: string;
+    publicId: string;
+    resourceType: string;
+    url: string;
+    nombre: string;
+    tipo: string;
+    subidoEn: string;
+  }[];
+
   @ApiProperty({ description: 'Fecha de creación del registro' })
   @CreateDateColumn()
   createdAt: Date;

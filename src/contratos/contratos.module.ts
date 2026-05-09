@@ -6,6 +6,7 @@ import { Contrato } from './entities/contrato.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Property } from '../properties/entities/property.entity';
 import { PagosModule } from '../pagos/pagos.module';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { PagosModule } from '../pagos/pagos.module';
     forwardRef(() => PagosModule),
   ],
   controllers: [ContratosController],
-  providers: [ContratosService],
+  providers: [ContratosService, CloudinaryService],
   exports: [ContratosService],
 })
 export class ContratosModule {}

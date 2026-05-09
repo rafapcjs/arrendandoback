@@ -10,6 +10,9 @@ import {
   UseGuards,
   ParseUUIDPipe,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,7 +20,10 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ContratosService } from './contratos.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
@@ -120,5 +126,108 @@ export class ContratosController {
   @ApiResponse({ status: HttpStatus.OK, type: Contrato })
   marcarComoVencido(@Param('id', ParseUUIDPipe) id: string): Promise<Contrato> {
     return this.contratosService.marcarComoVencido(id);
+  }
+
+  @Post(':id/documentos')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+      fileFilter: (
+        _req,
+        file: Express.Multer.File,
+        cb: (err: Error | null, accept: boolean) => void,
+      ) => {
+        const allowed = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ];
+        if (!allowed.includes(file.mimetype)) {
+          return cb(
+            new BadRequestException(
+              'Solo se permiten PDF, Word, JPG, PNG o WEBP',
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Subir documento de respaldo al contrato (PDF, Word, imagen)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
+  subirDocumento(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @GetUser() user: any,
+  ): Promise<Contrato> {
+    if (!file) throw new BadRequestException('Debe enviar un archivo');
+    return this.contratosService.subirDocumento(id, file, user);
+  }
+
+  @Patch(':id/documentos/:docId')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (
+        _req,
+        file: Express.Multer.File,
+        cb: (err: Error | null, accept: boolean) => void,
+      ) => {
+        const allowed = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ];
+        if (!allowed.includes(file.mimetype)) {
+          return cb(new BadRequestException('Solo se permiten PDF, Word, JPG, PNG o WEBP'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Reemplazar un documento existente del contrato' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
+  reemplazarDocumento(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('docId') docId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @GetUser() user: any,
+  ): Promise<Contrato> {
+    if (!file) throw new BadRequestException('Debe enviar un archivo');
+    return this.contratosService.reemplazarDocumento(id, docId, file, user);
+  }
+
+  @Delete(':id/documentos/:docId')
+  @ApiOperation({ summary: 'Eliminar documento de respaldo del contrato (solo borra el archivo, no el contrato)' })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
+  eliminarDocumento(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('docId') docId: string,
+    @GetUser() user: any,
+  ): Promise<Contrato> {
+    return this.contratosService.eliminarDocumento(id, docId, user);
   }
 }

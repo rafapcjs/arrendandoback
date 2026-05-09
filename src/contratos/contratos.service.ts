@@ -17,6 +17,7 @@ import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { SearchContratoDto } from './dto/search-contrato.dto';
 import { PaginatedContratoDto } from './dto/paginated-contrato.dto';
 import { PagosService } from '../pagos/pagos.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Role } from '../common/enums/roles.enum';
 
 interface RequestUser {
@@ -36,6 +37,7 @@ export class ContratosService {
     private propertyRepository: Repository<Property>,
     @Inject(forwardRef(() => PagosService))
     private pagosService: PagosService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   private tenantFilter(user: RequestUser) {
@@ -485,6 +487,98 @@ export class ContratosService {
       where,
       relations: ['inquilino', 'inmueble'],
     });
+  }
+
+  async subirDocumento(
+    id: string,
+    file: Express.Multer.File,
+    user: RequestUser,
+  ): Promise<Contrato> {
+    const contrato = await this.findOne(id, user);
+
+    const { secureUrl, publicId, resourceType } = await this.cloudinaryService.uploadDocument(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
+
+    const nuevoDoc = {
+      docId: crypto.randomUUID(),
+      publicId,
+      resourceType,
+      url: secureUrl,
+      nombre: file.originalname,
+      tipo: file.mimetype,
+      subidoEn: new Date().toISOString(),
+    };
+
+    const documentos = [...(contrato.documentos || []), nuevoDoc];
+    await this.contratoRepository.update(id, { documentos });
+
+    return this.findOne(id);
+  }
+
+  async reemplazarDocumento(
+    id: string,
+    docId: string,
+    file: Express.Multer.File,
+    user: RequestUser,
+  ): Promise<Contrato> {
+    const contrato = await this.findOne(id, user);
+
+    const idx = contrato.documentos?.findIndex((d) => d.docId === docId);
+    if (idx === undefined || idx === -1) {
+      throw new NotFoundException('Documento no encontrado en este contrato');
+    }
+
+    const docViejo = contrato.documentos[idx];
+    await this.cloudinaryService.deleteDocument(
+      docViejo.publicId,
+      (docViejo.resourceType as 'raw' | 'image') || 'raw',
+    );
+
+    const { secureUrl, publicId, resourceType } = await this.cloudinaryService.uploadDocument(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
+
+    const documentos = [...contrato.documentos];
+    documentos[idx] = {
+      docId,
+      publicId,
+      resourceType,
+      url: secureUrl,
+      nombre: file.originalname,
+      tipo: file.mimetype,
+      subidoEn: new Date().toISOString(),
+    };
+
+    await this.contratoRepository.update(id, { documentos });
+    return this.findOne(id);
+  }
+
+  async eliminarDocumento(
+    id: string,
+    docId: string,
+    user: RequestUser,
+  ): Promise<Contrato> {
+    const contrato = await this.findOne(id, user);
+
+    const doc = contrato.documentos?.find((d) => d.docId === docId);
+    if (!doc) {
+      throw new NotFoundException('Documento no encontrado en este contrato');
+    }
+
+    await this.cloudinaryService.deleteDocument(
+      doc.publicId,
+      (doc.resourceType as 'raw' | 'image') || 'raw',
+    );
+
+    const documentos = contrato.documentos.filter((d) => d.docId !== docId);
+    await this.contratoRepository.update(id, { documentos });
+
+    return this.findOne(id);
   }
 
   async findAllSimple(

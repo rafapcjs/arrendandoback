@@ -55,14 +55,61 @@ export class CloudinaryService {
   }
 
   async deleteImage(publicId: string): Promise<void> {
-    if (!publicId) {
-      return;
-    }
-
+    if (!publicId) return;
     try {
       await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
     } catch (error) {
       throw new InternalServerErrorException('Error al eliminar la imagen');
+    }
+  }
+
+  async uploadDocument(
+    buffer: Buffer,
+    filename: string,
+    mimetype: string,
+  ): Promise<{ secureUrl: string; publicId: string; resourceType: string }> {
+    const isImage = mimetype.startsWith('image/');
+    const resourceType: 'raw' | 'image' = isImage ? 'image' : 'raw';
+
+    // Quitar extensión del public_id — Cloudinary la agrega solo
+    const nameWithoutExt = filename
+      .replace(/\s+/g, '_')
+      .replace(/\.[^/.]+$/, '');
+
+    try {
+      return await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'contratos/documentos',
+            resource_type: resourceType,
+            type: 'upload',
+            access_mode: 'public',
+            public_id: `${Date.now()}-${nameWithoutExt}`,
+          },
+          (error, result) => {
+            if (error || !result) {
+              return reject(error ?? new Error('Cloudinary upload failed'));
+            }
+            resolve({
+              secureUrl: result.secure_url,
+              publicId: result.public_id,
+              resourceType,
+            });
+          },
+        );
+        Readable.from(buffer).pipe(uploadStream);
+      });
+    } catch (error) {
+      throw new InternalServerErrorException('Error al subir el documento');
+    }
+  }
+
+  async deleteDocument(publicId: string, resourceType: 'raw' | 'image' = 'raw'): Promise<void> {
+    if (!publicId) return;
+    try {
+      await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+    } catch (error) {
+      throw new InternalServerErrorException('Error al eliminar el documento');
     }
   }
 }
