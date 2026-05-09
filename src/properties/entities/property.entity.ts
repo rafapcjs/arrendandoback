@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../../auth/entities/user.entity';
@@ -15,6 +16,16 @@ export class Property {
   @ApiProperty({ description: 'UUID único del inmueble' })
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @ApiProperty({ description: 'UUID de la inmobiliaria propietaria' })
+  @Column({ type: 'uuid', nullable: true })
+  @Index()
+  inmobiliariaId: string;
+
+  @ApiProperty({ description: 'UUID del propietario del inmueble', required: false })
+  @Column({ type: 'uuid', nullable: true })
+  @Index()
+  propietarioId: string;
 
   @ApiProperty({ description: 'Dirección del inmueble' })
   @Column({ type: 'varchar', length: 500 })
@@ -48,10 +59,9 @@ export class Property {
   @Column({ type: 'varchar', length: 500, nullable: true })
   fotoPublicId: string;
 
-  @ApiProperty({ description: 'Usuario que creó la propiedad' })
-  @ManyToOne(() => User, (user) => user.propiedadesCreadas, { nullable: true })
+  @ManyToOne(() => User, (user) => user.propiedadesCreadas, { nullable: true, eager: false })
   @JoinColumn({ name: 'creadoPorId' })
-  creadoPor: Promise<User>;
+  creadoPor: User;
 
   @Column({ type: 'uuid', nullable: true })
   creadoPorId: string;

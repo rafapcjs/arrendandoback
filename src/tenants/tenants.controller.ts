@@ -10,7 +10,6 @@ import {
   HttpStatus,
   HttpCode,
   UseGuards,
-  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,230 +27,125 @@ import { SearchTenantDto } from './dto/search-tenant.dto';
 import { ActivateTenantDto } from './dto/activate-tenant.dto';
 import { PaginatedTenantDto } from './dto/paginated-tenant.dto';
 import { Tenant } from './entities/tenant.entity';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { GetUser } from '../common/decorators/get-user.decorator';
+import { Role } from '../common/enums/roles.enum';
 
-@ApiTags('inquilinos')
+@ApiTags('Inquilinos')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles('ADMIN')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.INMOBILIARIA)
 @Controller('tenants')
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Crear un nuevo inquilino (Solo ADMIN)' })
-  @ApiResponse({
-    status: 201,
-    description: 'Inquilino creado exitosamente',
-    type: Tenant,
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Ya existe un inquilino con esta cédula o correo',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Permisos insuficientes',
-  })
+  @ApiOperation({ summary: 'Crear inquilino' })
+  @ApiResponse({ status: 201, type: Tenant })
+  @ApiResponse({ status: 409, description: 'Cédula o correo duplicado en la inmobiliaria' })
   create(
     @Body() createTenantDto: CreateTenantDto,
-    @Request() req,
+    @GetUser() user: any,
   ): Promise<Tenant> {
-    return this.tenantsService.create(createTenantDto, req.user.id);
+    return this.tenantsService.create(createTenantDto, user);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar todos los inquilinos con paginación' })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Elementos por página (default: 10, max: 100)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de inquilinos obtenida exitosamente',
-    type: PaginatedTenantDto,
-  })
-  findAll(@Query() paginationDto: PaginationDto): Promise<PaginatedTenantDto> {
-    return this.tenantsService.findAll(paginationDto);
+  @ApiOperation({ summary: 'Listar inquilinos (INMOBILIARIA ve solo los suyos)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, type: PaginatedTenantDto })
+  findAll(
+    @Query() paginationDto: PaginationDto,
+    @GetUser() user: any,
+  ): Promise<PaginatedTenantDto> {
+    return this.tenantsService.findAll(paginationDto, user);
   }
 
   @Get('search')
   @ApiOperation({ summary: 'Buscar inquilinos con filtros' })
-  @ApiQuery({
-    name: 'search',
-    required: false,
-    type: String,
-    description: 'Buscar por nombres, apellidos o cédula',
-  })
-  @ApiQuery({
-    name: 'ciudad',
-    required: false,
-    type: String,
-    description: 'Filtrar por ciudad',
-  })
-  @ApiQuery({
-    name: 'isActive',
-    required: false,
-    type: Boolean,
-    description: 'Filtrar por estado activo',
-  })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Elementos por página (default: 10)',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Resultados de búsqueda obtenidos exitosamente',
-    type: PaginatedTenantDto,
-  })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'ciudad', required: false, type: String })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, type: PaginatedTenantDto })
   search(
     @Query() searchDto: SearchTenantDto & PaginationDto,
+    @GetUser() user: any,
   ): Promise<PaginatedTenantDto> {
-    return this.tenantsService.search(searchDto);
+    return this.tenantsService.search(searchDto, user);
   }
 
   @Get('cedula/:cedula')
   @ApiOperation({ summary: 'Buscar inquilino por cédula' })
-  @ApiParam({ name: 'cedula', description: 'Número de cédula del inquilino' })
-  @ApiResponse({
-    status: 200,
-    description: 'Inquilino encontrado exitosamente',
-    type: Tenant,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inquilino no encontrado',
-  })
-  findByCedula(@Param('cedula') cedula: string): Promise<Tenant> {
-    return this.tenantsService.findByCedula(cedula);
+  @ApiParam({ name: 'cedula', description: 'Número de cédula' })
+  @ApiResponse({ status: 200, type: Tenant })
+  findByCedula(
+    @Param('cedula') cedula: string,
+    @GetUser() user: any,
+  ): Promise<Tenant> {
+    return this.tenantsService.findByCedula(cedula, user);
   }
 
   @Get('email/:correo')
   @ApiOperation({ summary: 'Buscar inquilino por correo' })
-  @ApiParam({ name: 'correo', description: 'Correo electrónico del inquilino' })
-  @ApiResponse({
-    status: 200,
-    description: 'Inquilino encontrado exitosamente',
-    type: Tenant,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inquilino no encontrado',
-  })
-  findByEmail(@Param('correo') correo: string): Promise<Tenant> {
-    return this.tenantsService.findByEmail(correo);
+  @ApiParam({ name: 'correo', description: 'Correo electrónico' })
+  @ApiResponse({ status: 200, type: Tenant })
+  findByEmail(
+    @Param('correo') correo: string,
+    @GetUser() user: any,
+  ): Promise<Tenant> {
+    return this.tenantsService.findByEmail(correo, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener inquilino por ID' })
   @ApiParam({ name: 'id', description: 'UUID del inquilino' })
-  @ApiResponse({
-    status: 200,
-    description: 'Inquilino obtenido exitosamente',
-    type: Tenant,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inquilino no encontrado',
-  })
-  findOne(@Param('id') id: string): Promise<Tenant> {
-    return this.tenantsService.findOne(id);
+  @ApiResponse({ status: 200, type: Tenant })
+  findOne(
+    @Param('id') id: string,
+    @GetUser() user: any,
+  ): Promise<Tenant> {
+    return this.tenantsService.findOne(id, user);
   }
 
   @Patch(':id')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Actualizar inquilino por ID (Solo ADMIN)' })
+  @ApiOperation({ summary: 'Actualizar inquilino' })
   @ApiParam({ name: 'id', description: 'UUID del inquilino' })
-  @ApiResponse({
-    status: 200,
-    description: 'Inquilino actualizado exitosamente',
-    type: Tenant,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inquilino no encontrado',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Ya existe un inquilino con esta cédula o correo',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Permisos insuficientes',
-  })
+  @ApiResponse({ status: 200, type: Tenant })
   update(
     @Param('id') id: string,
     @Body() updateTenantDto: UpdateTenantDto,
+    @GetUser() user: any,
   ): Promise<Tenant> {
-    return this.tenantsService.update(id, updateTenantDto);
+    return this.tenantsService.update(id, updateTenantDto, user);
   }
 
   @Patch(':id/activate')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Activar/desactivar inquilino (Solo ADMIN)' })
+  @ApiOperation({ summary: 'Activar/desactivar inquilino' })
   @ApiParam({ name: 'id', description: 'UUID del inquilino' })
-  @ApiResponse({
-    status: 200,
-    description: 'Estado del inquilino actualizado exitosamente',
-    type: Tenant,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inquilino no encontrado',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Permisos insuficientes',
-  })
+  @ApiResponse({ status: 200, type: Tenant })
   activate(
     @Param('id') id: string,
     @Body() activateTenantDto: ActivateTenantDto,
+    @GetUser() user: any,
   ): Promise<Tenant> {
-    return this.tenantsService.activate(id, activateTenantDto.isActive);
+    return this.tenantsService.activate(id, activateTenantDto.isActive, user);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Eliminar inquilino por ID (Solo ADMIN)' })
+  @ApiOperation({ summary: 'Eliminar inquilino' })
   @ApiParam({ name: 'id', description: 'UUID del inquilino' })
-  @ApiResponse({
-    status: 204,
-    description: 'Inquilino eliminado exitosamente',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inquilino no encontrado',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Permisos insuficientes',
-  })
-  remove(@Param('id') id: string): Promise<void> {
-    return this.tenantsService.remove(id);
+  @ApiResponse({ status: 204 })
+  remove(
+    @Param('id') id: string,
+    @GetUser() user: any,
+  ): Promise<void> {
+    return this.tenantsService.remove(id, user);
   }
 }

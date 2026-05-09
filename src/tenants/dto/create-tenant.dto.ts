@@ -1,13 +1,18 @@
 import {
   IsEmail,
   IsString,
-  IsPhoneNumber,
   IsOptional,
   IsBoolean,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTenantDto {
+  @ApiProperty({ description: 'UUID de la inmobiliaria (solo ADMIN)', required: false })
+  @IsOptional()
+  @IsUUID()
+  inmobiliariaId?: string;
+
   @ApiProperty({ description: 'Número de cédula del inquilino' })
   @IsString()
   cedula: string;

@@ -9,7 +9,6 @@ import {
   UseGuards,
   Query,
   ParseEnumPipe,
-  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,8 +17,11 @@ import {
   ApiParam,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { GetUser } from '../common/decorators/get-user.decorator';
+import { Role } from '../common/enums/roles.enum';
 import { PagosService } from './pagos.service';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { UpdatePagoDto } from './dto/update-pago.dto';
@@ -27,67 +29,67 @@ import { RegistrarAbonoDto } from './dto/registrar-abono.dto';
 import { Pago, PagoEstado } from './entities/pago.entity';
 
 @ApiTags('Pagos')
-@ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.INMOBILIARIA)
 @Controller('pagos')
 export class PagosController {
   constructor(private readonly pagosService: PagosService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Crear un nuevo pago' })
-  @ApiResponse({ status: 201, description: 'Pago creado exitosamente', type: Pago })
-  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiOperation({ summary: 'Crear pago' })
+  @ApiResponse({ status: 201, type: Pago })
   create(
     @Body() createPagoDto: CreatePagoDto,
-    @Request() req,
+    @GetUser() user: any,
   ): Promise<Pago> {
-    return this.pagosService.crearPago(createPagoDto, req.user.id);
+    return this.pagosService.crearPago(createPagoDto, user);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar todos los pagos con filtro opcional por estado' })
-  @ApiResponse({ status: 200, description: 'Lista de pagos', type: [Pago] })
-  findAll(@Query('estado', new ParseEnumPipe(PagoEstado, { optional: true })) estado?: PagoEstado): Promise<Pago[]> {
+  @ApiOperation({ summary: 'Listar pagos (INMOBILIARIA ve solo los suyos)' })
+  @ApiResponse({ status: 200, type: [Pago] })
+  findAll(
+    @Query('estado', new ParseEnumPipe(PagoEstado, { optional: true })) estado?: PagoEstado,
+    @GetUser() user?: any,
+  ): Promise<Pago[]> {
     if (estado) {
-      return this.pagosService.findByEstado(estado);
+      return this.pagosService.findByEstado(estado, user);
     }
-    return this.pagosService.findAll();
+    return this.pagosService.findAll(user);
   }
 
   @Get('estado/:estado')
-  @ApiOperation({ summary: 'Listar pagos por estado específico' })
-  @ApiParam({ 
-    name: 'estado', 
-    description: 'Estado del pago',
-    enum: PagoEstado
-  })
-  @ApiResponse({ status: 200, description: 'Lista de pagos filtrados por estado', type: [Pago] })
-  findByEstado(@Param('estado', new ParseEnumPipe(PagoEstado)) estado: PagoEstado): Promise<Pago[]> {
-    return this.pagosService.findByEstado(estado);
+  @ApiOperation({ summary: 'Listar pagos por estado' })
+  @ApiParam({ name: 'estado', enum: PagoEstado })
+  @ApiResponse({ status: 200, type: [Pago] })
+  findByEstado(
+    @Param('estado', new ParseEnumPipe(PagoEstado)) estado: PagoEstado,
+    @GetUser() user: any,
+  ): Promise<Pago[]> {
+    return this.pagosService.findByEstado(estado, user);
   }
 
   @Get('contrato/:contratoId')
   @ApiOperation({ summary: 'Listar pagos por contrato' })
-  @ApiParam({ name: 'contratoId', description: 'ID del contrato' })
-  @ApiResponse({ status: 200, description: 'Lista de pagos del contrato', type: [Pago] })
+  @ApiParam({ name: 'contratoId' })
+  @ApiResponse({ status: 200, type: [Pago] })
   findByContrato(@Param('contratoId', ParseUUIDPipe) contratoId: string): Promise<Pago[]> {
     return this.pagosService.findByContrato(contratoId);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener un pago por ID' })
-  @ApiParam({ name: 'id', description: 'ID del pago' })
-  @ApiResponse({ status: 200, description: 'Pago encontrado', type: Pago })
-  @ApiResponse({ status: 404, description: 'Pago no encontrado' })
+  @ApiOperation({ summary: 'Obtener pago por ID' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, type: Pago })
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Pago> {
     return this.pagosService.findOne(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar un pago' })
-  @ApiParam({ name: 'id', description: 'ID del pago' })
-  @ApiResponse({ status: 200, description: 'Pago actualizado', type: Pago })
-  @ApiResponse({ status: 404, description: 'Pago no encontrado' })
+  @ApiOperation({ summary: 'Actualizar pago' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, type: Pago })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updatePagoDto: UpdatePagoDto,
@@ -97,10 +99,8 @@ export class PagosController {
 
   @Patch(':id/abono')
   @ApiOperation({ summary: 'Registrar abono a un pago' })
-  @ApiParam({ name: 'id', description: 'ID del pago' })
-  @ApiResponse({ status: 200, description: 'Abono registrado exitosamente', type: Pago })
-  @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  @ApiResponse({ status: 404, description: 'Pago no encontrado' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, type: Pago })
   registrarAbono(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() registrarAbonoDto: RegistrarAbonoDto,

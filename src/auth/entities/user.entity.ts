@@ -5,11 +5,13 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { Property } from '../../properties/entities/property.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Contrato } from '../../contratos/entities/contrato.entity';
 import { Pago } from '../../pagos/entities/pago.entity';
+import { Role } from '../../common/enums/roles.enum';
 
 @Entity('users')
 export class User {
@@ -28,8 +30,12 @@ export class User {
   @Column()
   password: string;
 
-  @Column({ default: 'ADMIN' })
-  role: string;
+  @Column({ type: 'enum', enum: Role, default: Role.ADMIN })
+  role: Role;
+
+  @Column({ type: 'uuid', nullable: true })
+  @Index()
+  inmobiliariaId: string | null;
 
   @Column({ default: true })
   isActive: boolean;

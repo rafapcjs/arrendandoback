@@ -48,19 +48,21 @@ export class Pago {
   @Column({ type: 'date', nullable: true })
   fechaPagoReal: Date;
 
+  @ApiProperty({ description: 'UUID de la inmobiliaria', required: false })
+  @Column({ type: 'uuid', nullable: true })
+  inmobiliariaId: string;
+
   @ApiProperty({ description: 'ID del contrato' })
   @Column({ type: 'uuid' })
   contratoId: string;
 
-  @ApiProperty({ description: 'Contrato asociado al pago' })
   @ManyToOne(() => Contrato, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'contratoId' })
   contrato: Contrato;
 
-  @ApiProperty({ description: 'Usuario que registró el pago' })
-  @ManyToOne(() => User, (user) => user.pagosRegistrados, { nullable: true })
+  @ManyToOne(() => User, (user) => user.pagosRegistrados, { nullable: true, eager: false })
   @JoinColumn({ name: 'registradoPorId' })
-  registradoPor: Promise<User>;
+  registradoPor: User;
 
   @Column({ type: 'uuid', nullable: true })
   registradoPorId: string;

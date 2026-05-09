@@ -13,6 +13,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommonModule } from './common/common.module';
 import { AuditModule } from './audit/audit.module';
+import { InmobiliariasModule } from './inmobiliarias/inmobiliarias.module';
+import { PropietariosModule } from './propietarios/propietarios.module';
 
 @Module({
   imports: [
@@ -26,7 +28,7 @@ import { AuditModule } from './audit/audit.module';
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: process.env.NODE_ENV !== 'production',
+        synchronize: true,
         ssl: {
           rejectUnauthorized: false,
         },
@@ -34,6 +36,8 @@ import { AuditModule } from './audit/audit.module';
       inject: [ConfigService],
     }),
     AuthModule,
+    InmobiliariasModule,
+    PropietariosModule,
     TenantsModule,
     PropertiesModule,
     ContratosModule,

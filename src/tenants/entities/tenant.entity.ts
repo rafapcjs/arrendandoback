@@ -6,15 +6,23 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
+  Unique,
 } from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
 
 @Entity('tenants')
+@Unique(['cedula', 'inmobiliariaId'])
+@Unique(['correo', 'inmobiliariaId'])
 export class Tenant {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'uuid', nullable: true })
+  @Index()
+  inmobiliariaId: string;
+
+  @Column()
   cedula: string;
 
   @Column()
@@ -26,7 +34,7 @@ export class Tenant {
   @Column()
   telefono: string;
 
-  @Column({ unique: true })
+  @Column()
   correo: string;
 
   @Column('text')
@@ -44,9 +52,9 @@ export class Tenant {
   @Column({ default: true })
   disponible: boolean;
 
-  @ManyToOne(() => User, (user) => user.inquilinosCreados, { nullable: true })
+  @ManyToOne(() => User, (user) => user.inquilinosCreados, { nullable: true, eager: false })
   @JoinColumn({ name: 'creadoPorId' })
-  creadoPor: Promise<User>;
+  creadoPor: User;
 
   @Column({ type: 'uuid', nullable: true })
   creadoPorId: string;

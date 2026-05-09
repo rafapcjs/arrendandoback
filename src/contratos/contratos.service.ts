@@ -16,6 +16,13 @@ import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { SearchContratoDto } from './dto/search-contrato.dto';
 import { PaginatedContratoDto } from './dto/paginated-contrato.dto';
 import { PagosService } from '../pagos/pagos.service';
+import { Role } from '../common/enums/roles.enum';
+
+interface RequestUser {
+  id: string;
+  role: string;
+  inmobiliariaId?: string | null;
+}
 
 @Injectable()
 export class ContratosService {
@@ -30,9 +37,18 @@ export class ContratosService {
     private pagosService: PagosService,
   ) {}
 
-  async create(createContratoDto: CreateContratoDto, userId: string): Promise<Contrato> {
+  private tenantFilter(user: RequestUser) {
+    if (user.role === Role.ADMIN) return {};
+    if (!user.inmobiliariaId) return { id: 'no-access' };
+    return { inmobiliariaId: user.inmobiliariaId };
+  }
+
+  async create(createContratoDto: CreateContratoDto, user: RequestUser): Promise<Contrato> {
     const { inquilinoId, inmuebleId, fechaInicio, fechaFin, estado } =
       createContratoDto;
+
+    const inmobiliariaId =
+      user.role === Role.INMOBILIARIA ? user.inmobiliariaId : createContratoDto.inmobiliariaId;
 
     // Validate tenant exists and is active
     const tenant = await this.tenantRepository.findOne({
@@ -82,7 +98,8 @@ export class ContratosService {
     // Create contract
     const contrato = this.contratoRepository.create({
       ...createContratoDto,
-      creadoPorId: userId,
+      inmobiliariaId: inmobiliariaId ?? undefined,
+      creadoPorId: user.id,
     });
     const savedContrato = await this.contratoRepository.save(contrato);
 
@@ -102,7 +119,7 @@ export class ContratosService {
       );
     }
 
-    return savedContrato;
+    return this.findOne(savedContrato.id);
   }
 
   private calcularMesesDuracion(fechaInicio: Date, fechaFin: Date): number {
@@ -132,11 +149,18 @@ export class ContratosService {
     page: number = 1,
     limit: number = 10,
     searchDto?: SearchContratoDto,
+    user?: RequestUser,
   ): Promise<PaginatedContratoDto> {
     const queryBuilder = this.contratoRepository
       .createQueryBuilder('contrato')
       .leftJoinAndSelect('contrato.inquilino', 'inquilino')
       .leftJoinAndSelect('contrato.inmueble', 'inmueble');
+
+    if (user && user.role !== Role.ADMIN) {
+      queryBuilder.andWhere('contrato.inmobiliariaId = :inmobiliariaId', {
+        inmobiliariaId: user.inmobiliariaId,
+      });
+    }
 
     // Apply filters
     if (searchDto) {
@@ -427,23 +451,32 @@ export class ContratosService {
     return this.findOne(id);
   }
 
-  async getActiveContracts(): Promise<Contrato[]> {
+  async getActiveContracts(user?: RequestUser): Promise<Contrato[]> {
+    const where: any = { estado: ContratoEstado.ACTIVO };
+    if (user && user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId || 'no-access';
+    }
     return this.contratoRepository.find({
-      where: { estado: ContratoEstado.ACTIVO },
+      where,
       relations: ['inquilino', 'inmueble'],
     });
   }
 
-  async getContractsExpiringSoon(days: number = 30): Promise<Contrato[]> {
+  async getContractsExpiringSoon(days: number = 30, user?: RequestUser): Promise<Contrato[]> {
     const today = new Date();
     const futureDate = new Date();
     futureDate.setDate(today.getDate() + days);
 
+    const where: any = {
+      estado: ContratoEstado.ACTIVO,
+      fechaFin: Between(today, futureDate),
+    };
+    if (user && user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId || 'no-access';
+    }
+
     return this.contratoRepository.find({
-      where: {
-        estado: ContratoEstado.ACTIVO,
-        fechaFin: Between(today, futureDate),
-      },
+      where,
       relations: ['inquilino', 'inmueble'],
     });
   }
@@ -452,13 +485,19 @@ export class ContratosService {
     page: number = 1,
     limit: number = 10,
     estado?: string,
+    user?: RequestUser,
   ): Promise<PaginatedContratoDto> {
     const queryBuilder = this.contratoRepository
       .createQueryBuilder('contrato')
       .leftJoinAndSelect('contrato.inquilino', 'inquilino')
       .leftJoinAndSelect('contrato.inmueble', 'inmueble');
 
-    // Apply estado filter if provided
+    if (user && user.role !== Role.ADMIN) {
+      queryBuilder.andWhere('contrato.inmobiliariaId = :inmobiliariaId', {
+        inmobiliariaId: user.inmobiliariaId,
+      });
+    }
+
     if (estado) {
       queryBuilder.andWhere('contrato.estado = :estado', { estado });
     }

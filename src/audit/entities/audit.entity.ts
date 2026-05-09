@@ -9,10 +9,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { AccionAuditoria } from '../enums/accion-auditoria.enum';
 
 @Entity('auditorias')
-@Index(['usuarioId'])
-@Index(['accion'])
-@Index(['entidad'])
-@Index(['createdAt'])
 export class Audit {
   @ApiProperty({ description: 'ID único de la auditoría' })
   @PrimaryGeneratedColumn('uuid')

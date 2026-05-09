@@ -32,6 +32,10 @@ export class AuthService {
   ) {}
 
   async register(createUserDto: CreateUserDto) {
+    if (createUserDto.role === 'INMOBILIARIA' && !createUserDto.inmobiliariaId) {
+      throw new BadRequestException('inmobiliariaId es obligatorio para usuarios con role INMOBILIARIA');
+    }
+
     const existingUser = await this.usersRepository.findOne({
       where: { email: createUserDto.email },
     });
@@ -45,7 +49,6 @@ export class AuthService {
     const user = this.usersRepository.create({
       ...createUserDto,
       password: hashedPassword,
-      role: createUserDto.role || 'ADMIN',
     });
 
     const savedUser = await this.usersRepository.save(user);
@@ -87,6 +90,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      inmobiliariaId: user.inmobiliariaId ?? null,
     };
 
     return {
@@ -97,6 +101,7 @@ export class AuthService {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
+        inmobiliariaId: user.inmobiliariaId ?? null,
       },
     };
   }
@@ -200,12 +205,12 @@ export class AuthService {
     const { email } = passwordRecoveryDto;
 
     const user = await this.usersRepository.findOne({
-      where: { email, role: 'ADMIN' },
+      where: { email },
     });
 
     if (!user) {
       throw new NotFoundException(
-        'Usuario administrador no encontrado con este email',
+        'Usuario no encontrado con este email',
       );
     }
 

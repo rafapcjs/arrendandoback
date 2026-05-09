@@ -46,6 +46,14 @@ export class Contrato {
   })
   estado: ContratoEstado;
 
+  @ApiProperty({ description: 'UUID de la inmobiliaria', required: false })
+  @Column({ type: 'uuid', nullable: true })
+  inmobiliariaId: string;
+
+  @ApiProperty({ description: 'UUID del propietario', required: false })
+  @Column({ type: 'uuid', nullable: true })
+  propietarioId: string;
+
   @ApiProperty({ description: 'ID del inquilino' })
   @Column({ type: 'uuid' })
   inquilinoId: string;
@@ -64,10 +72,9 @@ export class Contrato {
   @JoinColumn({ name: 'inmuebleId' })
   inmueble: Property;
 
-  @ApiProperty({ description: 'Usuario que creó el contrato' })
-  @ManyToOne(() => User, (user) => user.contratosCreados, { nullable: true })
+  @ManyToOne(() => User, (user) => user.contratosCreados, { nullable: true, eager: false })
   @JoinColumn({ name: 'creadoPorId' })
-  creadoPor: Promise<User>;
+  creadoPor: User;
 
   @Column({ type: 'uuid', nullable: true })
   creadoPorId: string;

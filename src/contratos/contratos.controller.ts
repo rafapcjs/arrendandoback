@@ -10,7 +10,6 @@ import {
   UseGuards,
   ParseUUIDPipe,
   HttpStatus,
-  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,130 +23,77 @@ import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { PaginatedContratoDto } from './dto/paginated-contrato.dto';
 import { Contrato } from './entities/contrato.entity';
-import { Roles } from '../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { AuthGuard } from '@nestjs/passport';
+import { Roles } from '../common/decorators/roles.decorator';
+import { GetUser } from '../common/decorators/get-user.decorator';
+import { Role } from '../common/enums/roles.enum';
 
 @ApiTags('Contratos')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles('ADMIN')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.INMOBILIARIA)
 @Controller('contratos')
 export class ContratosController {
   constructor(private readonly contratosService: ContratosService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Crear un nuevo contrato' })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'Contrato creado exitosamente',
-    type: Contrato,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Datos de entrada inválidos',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inquilino o inmueble no encontrado',
-  })
-  @ApiResponse({
-    status: HttpStatus.CONFLICT,
-    description: 'El inmueble no está disponible',
-  })
+  @ApiOperation({ summary: 'Crear contrato' })
+  @ApiResponse({ status: HttpStatus.CREATED, type: Contrato })
   create(
     @Body() createContratoDto: CreateContratoDto,
-    @Request() req,
+    @GetUser() user: any,
   ): Promise<Contrato> {
-    return this.contratosService.create(createContratoDto, req.user.id);
+    return this.contratosService.create(createContratoDto, user);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener lista paginada de contratos' })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Elementos por página (default: 10)',
-  })
-  @ApiQuery({
-    name: 'estado',
-    required: false,
-    description: 'Filtrar por estado del contrato',
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de contratos obtenida exitosamente',
-    type: PaginatedContratoDto,
-  })
+  @ApiOperation({ summary: 'Listar contratos (INMOBILIARIA ve solo los suyos)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'estado', required: false })
+  @ApiResponse({ status: HttpStatus.OK, type: PaginatedContratoDto })
   findAll(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('estado') estado?: string,
+    @GetUser() user?: any,
   ): Promise<PaginatedContratoDto> {
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 10;
-    return this.contratosService.findAllSimple(pageNum, limitNum, estado);
+    return this.contratosService.findAllSimple(
+      parseInt(page) || 1,
+      parseInt(limit) || 10,
+      estado,
+      user,
+    );
   }
 
   @Get('activos')
-  @ApiOperation({ summary: 'Obtener todos los contratos activos' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de contratos activos',
-    type: [Contrato],
-  })
-  getActiveContracts(): Promise<Contrato[]> {
-    return this.contratosService.getActiveContracts();
+  @ApiOperation({ summary: 'Contratos activos' })
+  @ApiResponse({ status: HttpStatus.OK, type: [Contrato] })
+  getActiveContracts(@GetUser() user: any): Promise<Contrato[]> {
+    return this.contratosService.getActiveContracts(user);
   }
 
   @Get('proximos-vencer/:days')
-  @ApiOperation({ summary: 'Obtener contratos próximos a vencer' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Lista de contratos próximos a vencer',
-    type: [Contrato],
-  })
-  getContractsExpiringSoon(@Param('days') days: number): Promise<Contrato[]> {
-    return this.contratosService.getContractsExpiringSoon(days);
+  @ApiOperation({ summary: 'Contratos próximos a vencer' })
+  @ApiResponse({ status: HttpStatus.OK, type: [Contrato] })
+  getContractsExpiringSoon(
+    @Param('days') days: number,
+    @GetUser() user: any,
+  ): Promise<Contrato[]> {
+    return this.contratosService.getContractsExpiringSoon(days, user);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener un contrato por ID' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Contrato encontrado',
-    type: Contrato,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Contrato no encontrado',
-  })
+  @ApiOperation({ summary: 'Obtener contrato por ID' })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Contrato> {
     return this.contratosService.findOne(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar un contrato' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Contrato actualizado exitosamente',
-    type: Contrato,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Contrato no encontrado',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Datos de entrada inválidos',
-  })
+  @ApiOperation({ summary: 'Actualizar contrato' })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateContratoDto: UpdateContratoDto,
@@ -156,59 +102,22 @@ export class ContratosController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Marcar contrato como vencido (eliminar lógicamente)' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Contrato marcado como vencido exitosamente',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Contrato no encontrado',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'No se puede eliminar un contrato activo',
-  })
+  @ApiOperation({ summary: 'Eliminar contrato (marca como VENCIDO)' })
+  @ApiResponse({ status: HttpStatus.OK })
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.contratosService.remove(id);
   }
 
   @Patch(':id/finalizar')
-  @ApiOperation({ summary: 'Finalizar un contrato' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Contrato finalizado exitosamente',
-    type: Contrato,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Contrato no encontrado',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description:
-      'Solo se pueden finalizar contratos activos o próximos a vencer',
-  })
+  @ApiOperation({ summary: 'Finalizar contrato' })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
   finalizarContrato(@Param('id', ParseUUIDPipe) id: string): Promise<Contrato> {
     return this.contratosService.finalizarContrato(id);
   }
 
   @Patch(':id/marcar-vencido')
   @ApiOperation({ summary: 'Marcar contrato como vencido' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Contrato marcado como vencido exitosamente',
-    type: Contrato,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Contrato no encontrado',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description:
-      'No se puede marcar como vencido antes de la fecha de fin o si ya está finalizado',
-  })
+  @ApiResponse({ status: HttpStatus.OK, type: Contrato })
   marcarComoVencido(@Param('id', ParseUUIDPipe) id: string): Promise<Contrato> {
     return this.contratosService.marcarComoVencido(id);
   }

@@ -10,6 +10,13 @@ import { Contrato } from '../contratos/entities/contrato.entity';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { UpdatePagoDto } from './dto/update-pago.dto';
 import { RegistrarAbonoDto } from './dto/registrar-abono.dto';
+import { Role } from '../common/enums/roles.enum';
+
+interface RequestUser {
+  id: string;
+  role: string;
+  inmobiliariaId?: string | null;
+}
 
 @Injectable()
 export class PagosService {
@@ -20,8 +27,13 @@ export class PagosService {
     private readonly contratoRepository: Repository<Contrato>,
   ) {}
 
-  async crearPago(createPagoDto: CreatePagoDto, userId?: string): Promise<Pago> {
-    // Verificar que el contrato existe
+  private tenantFilter(user: RequestUser): any {
+    if (user.role === Role.ADMIN) return {};
+    if (!user.inmobiliariaId) return { id: 'no-access' };
+    return { inmobiliariaId: user.inmobiliariaId };
+  }
+
+  async crearPago(createPagoDto: CreatePagoDto, user?: RequestUser): Promise<Pago> {
     const contrato = await this.contratoRepository.findOne({
       where: { id: createPagoDto.contratoId },
     });
@@ -32,19 +44,17 @@ export class PagosService {
       );
     }
 
-    // Calcular fecha de pago esperada basada en la fecha de inicio del contrato
     const fechaPagoEsperada = createPagoDto.fechaPagoEsperada;
-
-    // Si no se proporciona fecha, usar el canon mensual del contrato
     const montoTotal = createPagoDto.montoTotal || contrato.canonMensual;
 
     const pago = this.pagoRepository.create({
       contratoId: createPagoDto.contratoId,
+      inmobiliariaId: contrato.inmobiliariaId,
       montoTotal,
       fechaPagoEsperada,
       estado: PagoEstado.PENDIENTE,
       montoAbonado: 0,
-      registradoPorId: userId,
+      registradoPorId: user?.id,
     });
 
     return await this.pagoRepository.save(pago);
@@ -82,6 +92,7 @@ export class PagosService {
       if (!pagoExistente) {
         const pago = this.pagoRepository.create({
           contratoId,
+          inmobiliariaId: contrato.inmobiliariaId,
           montoTotal: contrato.canonMensual,
           fechaPagoEsperada: fechaPago,
           estado: PagoEstado.PENDIENTE,
@@ -154,8 +165,10 @@ export class PagosService {
     return { procesados: pagosAVerificar.length, vencidos };
   }
 
-  async findAll(): Promise<Pago[]> {
+  async findAll(user?: RequestUser): Promise<Pago[]> {
+    const where = user ? this.tenantFilter(user) : {};
     return await this.pagoRepository.find({
+      where,
       relations: ['contrato'],
       order: { fechaPagoEsperada: 'DESC' },
     });
@@ -169,9 +182,13 @@ export class PagosService {
     });
   }
 
-  async findByEstado(estado: PagoEstado): Promise<Pago[]> {
+  async findByEstado(estado: PagoEstado, user?: RequestUser): Promise<Pago[]> {
+    const where: any = { estado };
+    if (user && user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId || 'no-access';
+    }
     return await this.pagoRepository.find({
-      where: { estado },
+      where,
       relations: ['contrato', 'contrato.inquilino', 'contrato.inmueble'],
       order: { fechaPagoEsperada: 'DESC' },
     });

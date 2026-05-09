@@ -1,8 +1,18 @@
-import { IsString, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreatePropertyDto {
+  @ApiProperty({ description: 'UUID de la inmobiliaria (solo ADMIN)', required: false })
+  @IsOptional()
+  @IsUUID()
+  inmobiliariaId?: string;
+
+  @ApiProperty({ description: 'UUID del propietario del inmueble', required: false })
+  @IsOptional()
+  @IsUUID()
+  propietarioId?: string;
+
   @ApiProperty({ description: 'Dirección del inmueble' })
   @IsString()
   direccion: string;

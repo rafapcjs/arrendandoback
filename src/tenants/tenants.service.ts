@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Tenant } from './entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -15,6 +16,13 @@ import {
   Contrato,
   ContratoEstado,
 } from '../contratos/entities/contrato.entity';
+import { Role } from '../common/enums/roles.enum';
+
+interface RequestUser {
+  id: string;
+  role: string;
+  inmobiliariaId?: string | null;
+}
 
 @Injectable()
 export class TenantsService {
@@ -25,60 +33,70 @@ export class TenantsService {
     private contratoRepository: Repository<Contrato>,
   ) {}
 
-  async create(createTenantDto: CreateTenantDto, userId: string): Promise<Tenant> {
-    // Verificar si ya existe un inquilino con la misma cédula
-    const existingTenantByCedula = await this.tenantRepository.findOne({
-      where: { cedula: createTenantDto.cedula },
-    });
+  private tenantFilter(user: RequestUser): any {
+    if (user.role === Role.ADMIN) return {};
+    if (!user.inmobiliariaId) return { id: 'no-access' };
+    return { inmobiliariaId: user.inmobiliariaId };
+  }
 
-    if (existingTenantByCedula) {
-      throw new ConflictException('Ya existe un inquilino con esta cédula');
+  async create(createTenantDto: CreateTenantDto, user: RequestUser): Promise<Tenant> {
+    const inmobiliariaId =
+      user.role === Role.INMOBILIARIA ? user.inmobiliariaId : createTenantDto.inmobiliariaId;
+
+    if (!inmobiliariaId) {
+      throw new BadRequestException('Debe especificar inmobiliariaId');
     }
 
-    // Verificar si ya existe un inquilino con el mismo correo
-    const existingTenantByEmail = await this.tenantRepository.findOne({
-      where: { correo: createTenantDto.correo },
+    const existingByCedula = await this.tenantRepository.findOne({
+      where: { cedula: createTenantDto.cedula, inmobiliariaId },
     });
+    if (existingByCedula) {
+      throw new ConflictException('Ya existe un inquilino con esta cédula en su inmobiliaria');
+    }
 
-    if (existingTenantByEmail) {
-      throw new ConflictException('Ya existe un inquilino con este correo');
+    const existingByEmail = await this.tenantRepository.findOne({
+      where: { correo: createTenantDto.correo, inmobiliariaId },
+    });
+    if (existingByEmail) {
+      throw new ConflictException('Ya existe un inquilino con este correo en su inmobiliaria');
     }
 
     const tenant = this.tenantRepository.create({
       ...createTenantDto,
-      creadoPorId: userId,
+      inmobiliariaId,
+      creadoPorId: user.id,
     });
     return this.tenantRepository.save(tenant);
   }
 
-  async findAll(paginationDto: PaginationDto): Promise<PaginatedTenantDto> {
+  async findAll(paginationDto: PaginationDto, user: RequestUser): Promise<PaginatedTenantDto> {
     const { page = 1, limit = 10 } = paginationDto;
     const skip = (page - 1) * limit;
 
     const [data, total] = await this.tenantRepository.findAndCount({
+      where: this.tenantFilter(user),
       skip,
       take: limit,
       order: { createdAt: 'DESC' },
     });
 
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async search(
     searchDto: SearchTenantDto & PaginationDto,
+    user: RequestUser,
   ): Promise<PaginatedTenantDto> {
     const { search, ciudad, isActive, page = 1, limit = 10 } = searchDto;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.tenantRepository.createQueryBuilder('tenant');
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.where('tenant.inmobiliariaId = :inmobiliariaId', {
+        inmobiliariaId: user.inmobiliariaId,
+      });
+    }
 
     if (search) {
       queryBuilder.andWhere(
@@ -100,21 +118,17 @@ export class TenantsService {
     queryBuilder.orderBy('tenant.createdAt', 'DESC').skip(skip).take(limit);
 
     const [data, total] = await queryBuilder.getManyAndCount();
-    const totalPages = Math.ceil(total / limit);
 
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async findOne(id: string): Promise<Tenant> {
-    const tenant = await this.tenantRepository.findOne({
-      where: { id },
-    });
+  async findOne(id: string, user?: RequestUser): Promise<Tenant> {
+    const where: any = { id };
+    if (user && user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId;
+    }
+
+    const tenant = await this.tenantRepository.findOne({ where });
 
     if (!tenant) {
       throw new NotFoundException(`Inquilino con ID ${id} no encontrado`);
@@ -123,45 +137,37 @@ export class TenantsService {
     return tenant;
   }
 
-  async update(id: string, updateTenantDto: UpdateTenantDto): Promise<Tenant> {
-    const tenant = await this.findOne(id);
+  async update(id: string, updateTenantDto: UpdateTenantDto, user: RequestUser): Promise<Tenant> {
+    const tenant = await this.findOne(id, user);
 
-    // Verificar cédula única si se está actualizando
     if (updateTenantDto.cedula && updateTenantDto.cedula !== tenant.cedula) {
-      const existingTenantByCedula = await this.tenantRepository.findOne({
-        where: { cedula: updateTenantDto.cedula },
+      const existing = await this.tenantRepository.findOne({
+        where: { cedula: updateTenantDto.cedula, inmobiliariaId: tenant.inmobiliariaId },
       });
-
-      if (existingTenantByCedula) {
+      if (existing) {
         throw new ConflictException('Ya existe un inquilino con esta cédula');
       }
     }
 
-    // Verificar correo único si se está actualizando
     if (updateTenantDto.correo && updateTenantDto.correo !== tenant.correo) {
-      const existingTenantByEmail = await this.tenantRepository.findOne({
-        where: { correo: updateTenantDto.correo },
+      const existing = await this.tenantRepository.findOne({
+        where: { correo: updateTenantDto.correo, inmobiliariaId: tenant.inmobiliariaId },
       });
-
-      if (existingTenantByEmail) {
+      if (existing) {
         throw new ConflictException('Ya existe un inquilino con este correo');
       }
     }
 
     await this.tenantRepository.update(id, updateTenantDto);
-    return this.findOne(id);
+    return this.findOne(id, user);
   }
 
-  async activate(id: string, isActive: boolean): Promise<Tenant> {
-    const tenant = await this.findOne(id);
+  async activate(id: string, isActive: boolean, user: RequestUser): Promise<Tenant> {
+    const tenant = await this.findOne(id, user);
 
-    // Si se está intentando desactivar el inquilino, verificar que no tenga contratos activos
     if (!isActive && tenant.isActive) {
       const activeContracts = await this.contratoRepository.find({
-        where: {
-          inquilinoId: id,
-          estado: ContratoEstado.ACTIVO,
-        },
+        where: { inquilinoId: id, estado: ContratoEstado.ACTIVO },
       });
 
       if (activeContracts.length > 0) {
@@ -172,37 +178,39 @@ export class TenantsService {
     }
 
     await this.tenantRepository.update(id, { isActive });
-    return this.findOne(id);
+    return this.findOne(id, user);
   }
 
-  async remove(id: string): Promise<void> {
-    const tenant = await this.findOne(id);
+  async remove(id: string, user: RequestUser): Promise<void> {
+    const tenant = await this.findOne(id, user);
     await this.tenantRepository.remove(tenant);
   }
 
-  async findByCedula(cedula: string): Promise<Tenant> {
-    const tenant = await this.tenantRepository.findOne({
-      where: { cedula },
-    });
+  async findByCedula(cedula: string, user: RequestUser): Promise<Tenant> {
+    const where: any = { cedula };
+    if (user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId;
+    }
+
+    const tenant = await this.tenantRepository.findOne({ where });
 
     if (!tenant) {
-      throw new NotFoundException(
-        `Inquilino con cédula ${cedula} no encontrado`,
-      );
+      throw new NotFoundException(`Inquilino con cédula ${cedula} no encontrado`);
     }
 
     return tenant;
   }
 
-  async findByEmail(correo: string): Promise<Tenant> {
-    const tenant = await this.tenantRepository.findOne({
-      where: { correo },
-    });
+  async findByEmail(correo: string, user: RequestUser): Promise<Tenant> {
+    const where: any = { correo };
+    if (user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId;
+    }
+
+    const tenant = await this.tenantRepository.findOne({ where });
 
     if (!tenant) {
-      throw new NotFoundException(
-        `Inquilino con correo ${correo} no encontrado`,
-      );
+      throw new NotFoundException(`Inquilino con correo ${correo} no encontrado`);
     }
 
     return tenant;
