@@ -13,7 +13,10 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
+  InternalServerErrorException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -218,6 +221,48 @@ export class ContratosController {
   ): Promise<Contrato> {
     if (!file) throw new BadRequestException('Debe enviar un archivo');
     return this.contratosService.reemplazarDocumento(id, docId, file, user);
+  }
+
+  @Get(':id/documentos/:docId/stream')
+  @ApiOperation({ summary: 'Ver o descargar un documento del contrato (PDF, imagen, Word)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Archivo enviado como stream' })
+  async streamDocumento(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('docId') docId: string,
+    @Query('download') download: string,
+    @GetUser() user: any,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { url, nombre, tipo } = await this.contratosService.streamDocumento(id, docId, user);
+
+    let response: globalThis.Response;
+    try {
+      response = await fetch(url);
+    } catch {
+      throw new InternalServerErrorException('No se pudo obtener el documento desde el servidor');
+    }
+
+    if (!response.ok) {
+      throw new InternalServerErrorException('Error al recuperar el documento');
+    }
+
+    const disposition = download === 'true'
+      ? `attachment; filename="${encodeURIComponent(nombre)}"`
+      : `inline; filename="${encodeURIComponent(nombre)}"`;
+
+    res.setHeader('Content-Type', tipo);
+    res.setHeader('Content-Disposition', disposition);
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new InternalServerErrorException('Stream no disponible');
+
+    const pump = async () => {
+      const { done, value } = await reader.read();
+      if (done) { res.end(); return; }
+      res.write(Buffer.from(value));
+      await pump();
+    };
+    await pump();
   }
 
   @Delete(':id/documentos/:docId')

@@ -71,10 +71,12 @@ export class CloudinaryService {
     const isImage = mimetype.startsWith('image/');
     const resourceType: 'raw' | 'image' = isImage ? 'image' : 'raw';
 
-    // Quitar extensión del public_id — Cloudinary la agrega solo
-    const nameWithoutExt = filename
-      .replace(/\s+/g, '_')
-      .replace(/\.[^/.]+$/, '');
+    const safeName = filename.replace(/\s+/g, '_');
+    // Para imágenes Cloudinary agrega la extensión solo; para raw hay que mantenerla
+    const nameWithoutExt = safeName.replace(/\.[^/.]+$/, '');
+    const publicId = resourceType === 'raw'
+      ? `${Date.now()}-${safeName}`
+      : `${Date.now()}-${nameWithoutExt}`;
 
     try {
       return await new Promise((resolve, reject) => {
@@ -84,7 +86,7 @@ export class CloudinaryService {
             resource_type: resourceType,
             type: 'upload',
             access_mode: 'public',
-            public_id: `${Date.now()}-${nameWithoutExt}`,
+            public_id: publicId,
           },
           (error, result) => {
             if (error || !result) {

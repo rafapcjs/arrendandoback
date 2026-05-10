@@ -28,7 +28,15 @@
       "Bash(where convert *)",
       "Bash(where inkscape *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rafa\\\\Desktop\\\\arrendando\\\\arrendandoback\" -Force)",
-      "Bash(Select-Object Name, FullName)"
+      "Bash(Select-Object Name, FullName)",
+      "Bash(npx jest *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rafa\\\\Desktop\\\\arrendando\\\\arrendandoback\\\\src\" -Recurse -Filter \"*.service.ts\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(cd /d \"C:\\\\Users\\\\rafa\\\\Desktop\\\\arrendando\\\\arrendandoback\")",
+      "Bash(npm test *)",
+      "Bash(chmod +x llenar_datos.sh)",
+      "Bash(bash llenar_datos.sh)",
+      "Bash(python3 -m json.tool)"
     ],
     "deny": [],
     "ask": []

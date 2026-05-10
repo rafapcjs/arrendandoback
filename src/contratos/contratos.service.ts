@@ -558,6 +558,21 @@ export class ContratosService {
     return this.findOne(id);
   }
 
+  async streamDocumento(
+    id: string,
+    docId: string,
+    user: RequestUser,
+  ): Promise<{ url: string; nombre: string; tipo: string }> {
+    const contrato = await this.findOne(id, user);
+
+    const doc = contrato.documentos?.find((d) => d.docId === docId);
+    if (!doc) {
+      throw new NotFoundException('Documento no encontrado en este contrato');
+    }
+
+    return { url: doc.url, nombre: doc.nombre, tipo: doc.tipo };
+  }
+
   async eliminarDocumento(
     id: string,
     docId: string,

@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../../auth/entities/user.entity';
+import { Propietario } from '../../propietarios/entities/propietario.entity';
 
 @Entity('properties')
 export class Property {
@@ -26,6 +27,11 @@ export class Property {
   @Column({ type: 'uuid', nullable: true })
   @Index()
   propietarioId: string;
+
+  @ApiProperty({ description: 'Propietario del inmueble', required: false })
+  @ManyToOne(() => Propietario, { nullable: true, eager: true })
+  @JoinColumn({ name: 'propietarioId' })
+  propietario: Propietario;
 
   @ApiProperty({ description: 'Dirección del inmueble' })
   @Column({ type: 'varchar', length: 500 })
