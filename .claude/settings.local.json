@@ -22,7 +22,13 @@
       "PowerShell($env:DATABASE_URL = \"postgresql://neondb_owner:npg_lQE0IkFNP9wD@ep-divine-firefly-ad4984m7-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\"; psql $env:DATABASE_URL -c \"SELECT indexname FROM pg_indexes WHERE schemaname = 'public';\")",
       "Bash(node *)",
       "PowerShell(npm run *)",
-      "PowerShell($env:SMTP_PORT; $env:SMTP_HOST; $env:SMTP_PASS)"
+      "PowerShell($env:SMTP_PORT; $env:SMTP_HOST; $env:SMTP_PASS)",
+      "Bash(py --version)",
+      "Bash(where magick *)",
+      "Bash(where convert *)",
+      "Bash(where inkscape *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rafa\\\\Desktop\\\\arrendando\\\\arrendandoback\" -Force)",
+      "Bash(Select-Object Name, FullName)"
     ],
     "deny": [],
     "ask": []

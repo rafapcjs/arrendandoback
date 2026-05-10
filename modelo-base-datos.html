@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Modelo de Base de Datos — Arrendando</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 10px;
+    background: #fff;
+    padding: 20px;
+    color: #111;
+  }
+  h1 {
+    text-align: center;
+    font-size: 14px;
+    margin-bottom: 3px;
+    font-weight: bold;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 9px;
+    color: #555;
+    margin-bottom: 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .tbl {
+    border: 1.5px solid #333;
+    break-inside: avoid;
+  }
+  .tbl-head {
+    background: #1a202c;
+    color: #fff;
+    font-weight: bold;
+    font-size: 9.5px;
+    padding: 4px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .tbl table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .tbl table td {
+    padding: 2px 5px;
+    font-size: 9px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+  .tbl table tr:last-child td { border-bottom: none; }
+  .tbl table tr:nth-child(even) { background: #f8f9fa; }
+  .pk  { color: #d97706; font-weight: bold; }
+  .fk  { color: #2563eb; }
+  .typ { color: #6b7280; font-size: 8.5px; }
+  .tag-pk { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:2px; padding:0 3px; font-size:7.5px; font-weight:bold; }
+  .tag-fk { background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; border-radius:2px; padding:0 3px; font-size:7.5px; }
+  .tag-nn { background:#f3f4f6; color:#6b7280; border:1px solid #d1d5db; border-radius:2px; padding:0 3px; font-size:7.5px; }
+
+  /* Tabla relaciones */
+  h2 {
+    font-size: 11px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    border-bottom: 2px solid #1a202c;
+    padding-bottom: 3px;
+  }
+  .rel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9px;
+  }
+  .rel-table th {
+    background: #1a202c;
+    color: #fff;
+    padding: 4px 7px;
+    text-align: left;
+    font-size: 9px;
+  }
+  .rel-table td {
+    padding: 3px 7px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .rel-table tr:nth-child(even) { background: #f8f9fa; }
+  .many { font-weight: bold; color: #7c3aed; }
+
+  @media print {
+    body { padding: 10px; }
+    .grid { gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Modelo de Base de Datos — Arrendando</h1>
+<p class="subtitle">Sistema de Gestión de Arriendos · PostgreSQL · 2026</p>
+
+<div class="grid">
+
+  <!-- USERS -->
+  <div class="tbl">
+    <div class="tbl-head">users</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>nombre</td><td class="typ">varchar</td></tr>
+      <tr><td>email</td><td class="typ">varchar · unique</td></tr>
+      <tr><td>password</td><td class="typ">varchar</td></tr>
+      <tr><td>role</td><td class="typ">enum</td></tr>
+      <tr><td>isActive</td><td class="typ">boolean</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- INMOBILIARIAS -->
+  <div class="tbl">
+    <div class="tbl-head">inmobiliarias</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>nombre</td><td class="typ">varchar</td></tr>
+      <tr><td>nit</td><td class="typ">varchar · unique</td></tr>
+      <tr><td>email</td><td class="typ">varchar</td></tr>
+      <tr><td>telefono</td><td class="typ">varchar · null</td></tr>
+      <tr><td>direccion</td><td class="typ">varchar · null</td></tr>
+      <tr><td>isActive</td><td class="typ">boolean</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- PROPIETARIOS -->
+  <div class="tbl">
+    <div class="tbl-head">propietarios</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>nombre</td><td class="typ">varchar</td></tr>
+      <tr><td>apellido</td><td class="typ">varchar</td></tr>
+      <tr><td>email</td><td class="typ">varchar · null</td></tr>
+      <tr><td>telefono</td><td class="typ">varchar · null</td></tr>
+      <tr><td>cedula</td><td class="typ">varchar · null</td></tr>
+      <tr><td>isActive</td><td class="typ">boolean</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- PROPERTIES -->
+  <div class="tbl">
+    <div class="tbl-head">properties (inmuebles)</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>nombre</td><td class="typ">varchar</td></tr>
+      <tr><td>direccion</td><td class="typ">varchar</td></tr>
+      <tr><td>ciudad</td><td class="typ">varchar · null</td></tr>
+      <tr><td>tipo</td><td class="typ">enum</td></tr>
+      <tr><td>estado</td><td class="typ">enum</td></tr>
+      <tr><td>valorArriendo</td><td class="typ">decimal(12,4)</td></tr>
+      <tr><td>fotos</td><td class="typ">jsonb</td></tr>
+      <tr><td>isActive</td><td class="typ">boolean</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> propietarioId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> creadoPorId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- TENANTS -->
+  <div class="tbl">
+    <div class="tbl-head">tenants (inquilinos)</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>nombre</td><td class="typ">varchar</td></tr>
+      <tr><td>apellido</td><td class="typ">varchar</td></tr>
+      <tr><td>email</td><td class="typ">varchar · null</td></tr>
+      <tr><td>telefono</td><td class="typ">varchar · null</td></tr>
+      <tr><td>cedula</td><td class="typ">varchar · null</td></tr>
+      <tr><td>isActive</td><td class="typ">boolean</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> creadoPorId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- CONTRATOS -->
+  <div class="tbl">
+    <div class="tbl-head">contratos</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>fechaInicio</td><td class="typ">date</td></tr>
+      <tr><td>fechaFin</td><td class="typ">date</td></tr>
+      <tr><td>canonMensual</td><td class="typ">decimal(12,4)</td></tr>
+      <tr><td>estado</td><td class="typ">enum</td></tr>
+      <tr><td>documentos</td><td class="typ">jsonb</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inquilinoId</td><td class="typ">uuid</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmuebleId</td><td class="typ">uuid</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> propietarioId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> creadoPorId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- PAGOS -->
+  <div class="tbl">
+    <div class="tbl-head">pagos</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>monto</td><td class="typ">decimal(12,4)</td></tr>
+      <tr><td>montoAbonado</td><td class="typ">decimal(12,4)</td></tr>
+      <tr><td>montoPendiente</td><td class="typ">decimal(12,4)</td></tr>
+      <tr><td>estado</td><td class="typ">enum</td></tr>
+      <tr><td>fechaPago</td><td class="typ">date · null</td></tr>
+      <tr><td>periodoMes</td><td class="typ">int</td></tr>
+      <tr><td>periodoAnio</td><td class="typ">int</td></tr>
+      <tr><td>metodoPago</td><td class="typ">enum · null</td></tr>
+      <tr><td>notas</td><td class="typ">text · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> contratoId</td><td class="typ">uuid</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> creadoPorId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+      <tr><td>updatedAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+  <!-- AUDITORIAS -->
+  <div class="tbl">
+    <div class="tbl-head">auditorias</div>
+    <table>
+      <tr><td><span class="tag-pk">PK</span> id</td><td class="typ">uuid</td></tr>
+      <tr><td>accion</td><td class="typ">varchar</td></tr>
+      <tr><td>entidad</td><td class="typ">varchar</td></tr>
+      <tr><td>entidadId</td><td class="typ">varchar · null</td></tr>
+      <tr><td>datosAnteriores</td><td class="typ">jsonb · null</td></tr>
+      <tr><td>datosNuevos</td><td class="typ">jsonb · null</td></tr>
+      <tr><td>ip</td><td class="typ">varchar · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> usuarioId</td><td class="typ">uuid · null</td></tr>
+      <tr><td><span class="tag-fk">FK</span> inmobiliariaId</td><td class="typ">uuid · null</td></tr>
+      <tr><td>createdAt</td><td class="typ">timestamp</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- RELACIONES -->
+<h2>Relaciones entre tablas</h2>
+<table class="rel-table">
+  <tr>
+    <th>Tabla origen</th>
+    <th>Campo FK</th>
+    <th>Cardinalidad</th>
+    <th>Tabla destino</th>
+    <th>Campo PK</th>
+    <th>Descripción</th>
+  </tr>
+  <tr>
+    <td>users</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Un usuario pertenece a una inmobiliaria</td>
+  </tr>
+  <tr>
+    <td>propietarios</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Un propietario pertenece a una inmobiliaria</td>
+  </tr>
+  <tr>
+    <td>properties</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Un inmueble pertenece a una inmobiliaria</td>
+  </tr>
+  <tr>
+    <td>properties</td>
+    <td>propietarioId</td>
+    <td class="many">N → 1</td>
+    <td>propietarios</td>
+    <td>id</td>
+    <td>Un inmueble tiene un propietario</td>
+  </tr>
+  <tr>
+    <td>properties</td>
+    <td>creadoPorId</td>
+    <td class="many">N → 1</td>
+    <td>users</td>
+    <td>id</td>
+    <td>Auditoría: usuario que creó el inmueble</td>
+  </tr>
+  <tr>
+    <td>tenants</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Un inquilino pertenece a una inmobiliaria</td>
+  </tr>
+  <tr>
+    <td>tenants</td>
+    <td>creadoPorId</td>
+    <td class="many">N → 1</td>
+    <td>users</td>
+    <td>id</td>
+    <td>Auditoría: usuario que creó el inquilino</td>
+  </tr>
+  <tr>
+    <td>contratos</td>
+    <td>inquilinoId</td>
+    <td class="many">N → 1</td>
+    <td>tenants</td>
+    <td>id</td>
+    <td>Un contrato tiene un inquilino</td>
+  </tr>
+  <tr>
+    <td>contratos</td>
+    <td>inmuebleId</td>
+    <td class="many">N → 1</td>
+    <td>properties</td>
+    <td>id</td>
+    <td>Un contrato está vinculado a un inmueble</td>
+  </tr>
+  <tr>
+    <td>contratos</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Un contrato pertenece a una inmobiliaria</td>
+  </tr>
+  <tr>
+    <td>contratos</td>
+    <td>propietarioId</td>
+    <td class="many">N → 1</td>
+    <td>propietarios</td>
+    <td>id</td>
+    <td>Un contrato referencia al propietario del inmueble</td>
+  </tr>
+  <tr>
+    <td>contratos</td>
+    <td>creadoPorId</td>
+    <td class="many">N → 1</td>
+    <td>users</td>
+    <td>id</td>
+    <td>Auditoría: usuario que creó el contrato</td>
+  </tr>
+  <tr>
+    <td>pagos</td>
+    <td>contratoId</td>
+    <td class="many">N → 1</td>
+    <td>contratos</td>
+    <td>id</td>
+    <td>Un pago pertenece a un contrato</td>
+  </tr>
+  <tr>
+    <td>pagos</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Un pago pertenece a una inmobiliaria</td>
+  </tr>
+  <tr>
+    <td>pagos</td>
+    <td>creadoPorId</td>
+    <td class="many">N → 1</td>
+    <td>users</td>
+    <td>id</td>
+    <td>Auditoría: usuario que registró el pago</td>
+  </tr>
+  <tr>
+    <td>auditorias</td>
+    <td>usuarioId</td>
+    <td class="many">N → 1</td>
+    <td>users</td>
+    <td>id</td>
+    <td>Registro de acción por usuario</td>
+  </tr>
+  <tr>
+    <td>auditorias</td>
+    <td>inmobiliariaId</td>
+    <td class="many">N → 1</td>
+    <td>inmobiliarias</td>
+    <td>id</td>
+    <td>Registro de acción por inmobiliaria</td>
+  </tr>
+</table>
+
+<p style="font-size:8px;color:#aaa;margin-top:12px;text-align:right;">
+  <span style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:2px;padding:0 3px;font-size:7.5px;font-weight:bold;">PK</span> Clave primaria &nbsp;
+  <span style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;border-radius:2px;padding:0 3px;font-size:7.5px;">FK</span> Clave foránea &nbsp;
+  N→1 = Muchos a uno
+</p>
+
+</body>
+</html>
