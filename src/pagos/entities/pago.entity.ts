@@ -6,10 +6,12 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  AfterLoad,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Contrato } from '../../contratos/entities/contrato.entity';
 import { User } from '../../auth/entities/user.entity';
+import { PagoCalculator } from '../utils/pago-calculator';
 
 export enum PagoEstado {
   PENDIENTE = 'PENDIENTE',
@@ -28,9 +30,15 @@ export class Pago {
   @Column('decimal', { precision: 12, scale: 4 })
   montoTotal: number;
 
-  @ApiProperty({ description: 'Monto abonado del pago' })
+  @ApiProperty({ description: 'Monto abonado del pago (capital)' })
   @Column('decimal', { precision: 12, scale: 4, default: 0 })
   montoAbonado: number;
+
+  @ApiProperty({
+    description: 'Mora ya abonada acumulada (se descuenta de la mora generada)',
+  })
+  @Column('decimal', { precision: 12, scale: 4, default: 0 })
+  moraAbonada: number;
 
   @ApiProperty({ description: 'Estado del pago', enum: PagoEstado })
   @Column({
@@ -74,4 +82,47 @@ export class Pago {
   @ApiProperty({ description: 'Fecha de última actualización del registro' })
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // ─── Campos calculados (no se persisten) ──────────────────────────────────
+  // Se recalculan automáticamente cada vez que la entidad se carga desde la
+  // base de datos y también pueden refrescarse manualmente vía PagoCalculator.
+
+  @ApiProperty({
+    description: 'Saldo pendiente = montoTotal − montoAbonado',
+    readOnly: true,
+  })
+  saldoPendiente?: number;
+
+  @ApiProperty({
+    description: 'Días de retraso respecto a la fecha de vencimiento',
+    readOnly: true,
+  })
+  diasRetraso?: number;
+
+  @ApiProperty({
+    description: 'Mora total generada (1 % diario sobre el saldo pendiente)',
+    readOnly: true,
+  })
+  moraGenerada?: number;
+
+  @ApiProperty({
+    description: 'Mora pendiente de pagar (moraGenerada − moraAbonada, nunca negativa)',
+    readOnly: true,
+  })
+  mora?: number;
+
+  @ApiProperty({
+    description: 'Total a pagar = saldoPendiente + mora',
+    readOnly: true,
+  })
+  totalAPagar?: number;
+
+  /**
+   * Hook de TypeORM: recalcula los campos derivados cada vez que el registro
+   * se carga, garantizando que siempre se entreguen valores actualizados.
+   */
+  @AfterLoad()
+  recalcularCamposDerivados(): void {
+    PagoCalculator.aplicar(this);
+  }
 }

@@ -59,6 +59,20 @@ export class PagosController {
     return this.pagosService.findAll(user);
   }
 
+  @Get('deuda/inquilino/:cedula')
+  @ApiOperation({
+    summary: 'Consultar la deuda total de un inquilino por cédula',
+    description:
+      'Devuelve el detalle completo de la deuda: saldo capital, mora, total a pagar, ' +
+      'cantidad de meses adeudados y desglose por estado (pendiente/parcial/vencido).',
+  })
+  @ApiParam({ name: 'cedula', description: 'Cédula del inquilino' })
+  @ApiResponse({ status: 200, description: 'Resumen de deuda del inquilino' })
+  @ApiResponse({ status: 404, description: 'Inquilino no encontrado' })
+  consultarDeudaInquilino(@Param('cedula') cedula: string) {
+    return this.pagosService.verificarDeudaPorCedula(cedula);
+  }
+
   @Get('estado/:estado')
   @ApiOperation({ summary: 'Listar pagos por estado' })
   @ApiParam({ name: 'estado', enum: PagoEstado })

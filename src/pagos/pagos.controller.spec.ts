@@ -98,4 +98,21 @@ describe('PagosController', () => {
     });
   });
 
+  describe('consultarDeudaInquilino', () => {
+    it('retorna la deuda total del inquilino consultado por cédula', async () => {
+      const mockDeuda = {
+        inquilino: { cedula: '12345' },
+        contratos: [],
+        deuda: { totalMeses: 3, totalAPagar: 4_500_000, totalMora: 100_000 },
+        resumen: { nivel: 'MOROSO' },
+      };
+      service.verificarDeudaPorCedula.mockResolvedValue(mockDeuda as any);
+
+      const result = await controller.consultarDeudaInquilino('12345');
+
+      expect(service.verificarDeudaPorCedula).toHaveBeenCalledWith('12345');
+      expect(result).toEqual(mockDeuda);
+    });
+  });
+
 });

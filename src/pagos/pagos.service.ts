@@ -11,6 +11,7 @@ import { CreatePagoDto } from './dto/create-pago.dto';
 import { UpdatePagoDto } from './dto/update-pago.dto';
 import { RegistrarAbonoDto } from './dto/registrar-abono.dto';
 import { Role } from '../common/enums/roles.enum';
+import { PagoCalculator } from './utils/pago-calculator';
 
 interface RequestUser {
   id: string;
@@ -57,7 +58,10 @@ export class PagosService {
       registradoPorId: user?.id,
     });
 
-    return await this.pagoRepository.save(pago);
+    const guardado = await this.pagoRepository.save(pago);
+    // El hook @AfterLoad no se dispara tras save(): recalculamos manualmente
+    // para que la respuesta incluya saldo, mora y total a pagar en tiempo real.
+    return PagoCalculator.aplicar(guardado);
   }
 
   async crearPagosMensuales(
@@ -100,36 +104,69 @@ export class PagosService {
         });
 
         const pagoGuardado = await this.pagoRepository.save(pago);
-        pagos.push(pagoGuardado);
+        pagos.push(PagoCalculator.aplicar(pagoGuardado));
       }
     }
 
     return pagos;
   }
 
+  /**
+   * Registra un abono distribuyéndolo entre capital y mora.
+   *
+   * Reglas:
+   *  - El monto recibido se aplica primero al saldo de capital pendiente.
+   *  - El excedente (si lo hay) se aplica a la mora pendiente.
+   *  - Se acepta hasta totalAPagar + TOLERANCIA_COP (1 peso) para absorber
+   *    diferencias de redondeo entre la mora calculada en backend (decimal)
+   *    y el monto entero que envía el front.
+   *  - La cuota queda PAGADO solo cuando capital y mora estén saldados.
+   */
   async registrarAbono(
     id: string,
     registrarAbonoDto: RegistrarAbonoDto,
     user?: RequestUser,
   ): Promise<Pago> {
+    const TOLERANCIA_COP = 1; // ±1 peso de tolerancia por redondeo
+
     const pago = await this.findOne(id, user);
 
     if (pago.estado === PagoEstado.PAGADO) {
       throw new BadRequestException('El pago ya está completamente pagado');
     }
 
-    const nuevoMontoAbonado =
-      Number(pago.montoAbonado) + Number(registrarAbonoDto.monto);
+    // Re-aseguramos que los campos derivados estén frescos al momento del abono.
+    PagoCalculator.aplicar(pago);
 
-    if (nuevoMontoAbonado > Number(pago.montoTotal)) {
+    const monto = Number(registrarAbonoDto.monto);
+    const saldoCapital = Number(pago.saldoPendiente) || 0;
+    const moraPendiente = Number(pago.mora) || 0;
+    const totalAPagar = Number(pago.totalAPagar) || 0;
+
+    if (monto <= 0) {
+      throw new BadRequestException('El monto del abono debe ser mayor a 0');
+    }
+
+    if (monto > totalAPagar + TOLERANCIA_COP) {
       throw new BadRequestException(
-        'El monto del abono excede el monto total del pago',
+        `El monto del abono ($${monto}) excede el total a pagar ($${totalAPagar}) incluyendo mora`,
       );
     }
 
-    pago.montoAbonado = nuevoMontoAbonado;
+    // Distribución: primero capital, el excedente va a mora.
+    const aplicadoCapital = Math.min(monto, saldoCapital);
+    const excedente = monto - aplicadoCapital;
+    const aplicadoMora = Math.min(excedente, moraPendiente + TOLERANCIA_COP);
 
-    if (nuevoMontoAbonado === Number(pago.montoTotal)) {
+    pago.montoAbonado = Number(pago.montoAbonado) + aplicadoCapital;
+    pago.moraAbonada = Number(pago.moraAbonada || 0) + aplicadoMora;
+
+    // ¿Quedó todo saldado? Capital cubierto y mora pendiente dentro de tolerancia.
+    const capitalCubierto =
+      Number(pago.montoAbonado) >= Number(pago.montoTotal) - TOLERANCIA_COP;
+    const moraCubierta = moraPendiente - aplicadoMora <= TOLERANCIA_COP;
+
+    if (capitalCubierto && moraCubierta) {
       pago.estado = PagoEstado.PAGADO;
       pago.fechaPagoReal = registrarAbonoDto.fechaPago
         ? new Date(registrarAbonoDto.fechaPago)
@@ -138,8 +175,10 @@ export class PagosService {
       pago.estado = PagoEstado.PARCIAL;
     }
 
-    return await this.pagoRepository.save(pago);
-    
+    const guardado = await this.pagoRepository.save(pago);
+    // Recalculamos para reflejar el nuevo saldo, mora pendiente y total a pagar
+    // inmediatamente después de registrar el abono.
+    return PagoCalculator.aplicar(guardado);
   }
 
   async verificarPagosVencidos(): Promise<{
@@ -223,7 +262,8 @@ export class PagosService {
     }
 
     Object.assign(pago, updatePagoDto);
-    return await this.pagoRepository.save(pago);
+    const guardado = await this.pagoRepository.save(pago);
+    return PagoCalculator.aplicar(guardado);
   }
 
   async remove(id: string): Promise<void> {
@@ -354,16 +394,20 @@ export class PagosService {
     };
   }
 
+  /**
+   * Recolecta toda la deuda de un inquilino identificado por su cédula.
+   * Incluye saldo, mora y total a pagar por cuota y agregados.
+   * Los pagos vienen recalculados por @AfterLoad → PagoCalculator.
+   */
   async verificarDeudaPorCedula(cedula: string) {
-    // Buscar inquilino por cédula
-    const queryInquilino = this.pagoRepository
+    const pagosInquilino = await this.pagoRepository
       .createQueryBuilder('pago')
       .leftJoinAndSelect('pago.contrato', 'contrato')
       .leftJoinAndSelect('contrato.inquilino', 'inquilino')
       .leftJoinAndSelect('contrato.inmueble', 'inmueble')
-      .where('inquilino.cedula = :cedula', { cedula });
-
-    const pagosInquilino = await queryInquilino.getMany();
+      .where('inquilino.cedula = :cedula', { cedula })
+      .orderBy('pago.fechaPagoEsperada', 'ASC')
+      .getMany();
 
     if (pagosInquilino.length === 0) {
       throw new NotFoundException(
@@ -373,49 +417,64 @@ export class PagosService {
 
     const inquilino = pagosInquilino[0].contrato.inquilino;
 
-    // Obtener contratos únicos del inquilino
+    // Contratos únicos asociados al inquilino
     const contratos = [
       ...new Map(
         pagosInquilino.map((pago) => [pago.contrato.id, pago.contrato]),
       ).values(),
     ];
 
-    // Calcular estadísticas de deuda
-    const pagosPendientes = pagosInquilino.filter(
-      (p) => p.estado === PagoEstado.PENDIENTE,
-    );
-    const pagosVencidos = pagosInquilino.filter(
-      (p) => p.estado === PagoEstado.VENCIDO,
-    );
-    const pagosParciales = pagosInquilino.filter(
-      (p) => p.estado === PagoEstado.PARCIAL,
-    );
-    const pagosPagados = pagosInquilino.filter(
-      (p) => p.estado === PagoEstado.PAGADO,
-    );
+    // Particionamos por estado en una sola pasada (O(n)).
+    const pagosPendientes: Pago[] = [];
+    const pagosVencidos: Pago[] = [];
+    const pagosParciales: Pago[] = [];
+    const pagosPagados: Pago[] = [];
 
-    // Calcular deuda total
-    const deudaPendientes = pagosPendientes.reduce(
-      (total, pago) =>
-        total + (Number(pago.montoTotal) - Number(pago.montoAbonado)),
-      0,
-    );
+    for (const p of pagosInquilino) {
+      switch (p.estado) {
+        case PagoEstado.PENDIENTE:
+          pagosPendientes.push(p);
+          break;
+        case PagoEstado.VENCIDO:
+          pagosVencidos.push(p);
+          break;
+        case PagoEstado.PARCIAL:
+          pagosParciales.push(p);
+          break;
+        case PagoEstado.PAGADO:
+          pagosPagados.push(p);
+          break;
+      }
+    }
 
-    const deudaVencidos = pagosVencidos.reduce(
-      (total, pago) =>
-        total + (Number(pago.montoTotal) - Number(pago.montoAbonado)),
-      0,
-    );
+    // Helper que agrega saldo, mora y total a pagar para un grupo de pagos.
+    const agrupar = (lista: Pago[]) =>
+      lista.reduce(
+        (acc, p) => {
+          acc.saldo += Number(p.saldoPendiente) || 0;
+          acc.mora += Number(p.mora) || 0;
+          acc.totalAPagar += Number(p.totalAPagar) || 0;
+          return acc;
+        },
+        { meses: lista.length, saldo: 0, mora: 0, totalAPagar: 0 },
+      );
 
-    const deudaParciales = pagosParciales.reduce(
-      (total, pago) =>
-        total + (Number(pago.montoTotal) - Number(pago.montoAbonado)),
-      0,
-    );
+    const agPendientes = agrupar(pagosPendientes);
+    const agVencidos = agrupar(pagosVencidos);
+    const agParciales = agrupar(pagosParciales);
 
-    const totalDeuda = deudaPendientes + deudaVencidos + deudaParciales;
+    // Totales globales (solo cuentan los pagos NO pagados).
+    const totalMeses =
+      agPendientes.meses + agVencidos.meses + agParciales.meses;
+    const totalSaldoCapital =
+      agPendientes.saldo + agVencidos.saldo + agParciales.saldo;
+    const totalMora = agPendientes.mora + agVencidos.mora + agParciales.mora;
+    const totalAPagar =
+      agPendientes.totalAPagar +
+      agVencidos.totalAPagar +
+      agParciales.totalAPagar;
 
-    // Encontrar último pago realizado
+    // Último pago realmente realizado
     const ultimoPagoRealizado = pagosPagados
       .filter((p) => p.fechaPagoReal)
       .sort(
@@ -424,8 +483,27 @@ export class PagosService {
           new Date(a.fechaPagoReal).getTime(),
       )[0];
 
-    // Determinar si está al día (no tiene pagos vencidos ni parciales con mora)
-    const alDia = pagosVencidos.length === 0 && pagosParciales.length === 0;
+    const alDia = totalMeses === 0;
+
+    // Detalle por cuota adeudada (excluye los pagados).
+    const cuotas = [...pagosPendientes, ...pagosParciales, ...pagosVencidos]
+      .sort(
+        (a, b) =>
+          new Date(a.fechaPagoEsperada).getTime() -
+          new Date(b.fechaPagoEsperada).getTime(),
+      )
+      .map((p) => ({
+        id: p.id,
+        contratoId: p.contratoId,
+        estado: p.estado,
+        fechaPagoEsperada: p.fechaPagoEsperada,
+        montoTotal: Number(p.montoTotal),
+        montoAbonado: Number(p.montoAbonado),
+        saldoPendiente: p.saldoPendiente ?? 0,
+        diasRetraso: p.diasRetraso ?? 0,
+        mora: p.mora ?? 0,
+        totalAPagar: p.totalAPagar ?? 0,
+      }));
 
     return {
       inquilino: {
@@ -448,13 +526,16 @@ export class PagosService {
           descripcion: contrato.inmueble.descripcion,
         },
       })),
-      estadoDeuda: {
+      deuda: {
         alDia,
-        totalDeuda,
+        totalMeses,                  // Cantidad de meses (cuotas) adeudados
+        totalSaldoCapital,           // Suma de saldos sin mora
+        totalMora,                   // Suma de moras de todas las cuotas
+        totalAPagar,                 // saldo capital + mora
         desglose: {
-          pendientes: deudaPendientes,
-          vencidos: deudaVencidos,
-          parciales: deudaParciales,
+          pendientes: agPendientes,  // { meses, saldo, mora, totalAPagar }
+          vencidos: agVencidos,
+          parciales: agParciales,
         },
         cantidadPagos: {
           pendientes: pagosPendientes.length,
@@ -463,6 +544,7 @@ export class PagosService {
           pagados: pagosPagados.length,
           total: pagosInquilino.length,
         },
+        cuotas,                      // Detalle cuota a cuota con su mora
         ultimoPago: ultimoPagoRealizado
           ? {
               fecha: ultimoPagoRealizado.fechaPagoReal,
@@ -474,7 +556,7 @@ export class PagosService {
       resumen: {
         mensaje: alDia
           ? 'El inquilino está al día con sus pagos'
-          : `El inquilino debe $${totalDeuda.toLocaleString()} en total`,
+          : `El inquilino debe $${totalAPagar.toLocaleString()} en ${totalMeses} mes(es)`,
         nivel: alDia
           ? 'AL_DIA'
           : pagosVencidos.length > 0
