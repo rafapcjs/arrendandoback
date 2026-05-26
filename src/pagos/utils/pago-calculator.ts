@@ -49,6 +49,7 @@ export class PagoCalculator {
     pago.moraGenerada = PagoCalculator.redondear(moraGenerada);
     pago.mora = PagoCalculator.redondear(moraPendiente);
     pago.totalAPagar = PagoCalculator.redondear(saldoPendiente + moraPendiente);
+    pago.totalRecibido = PagoCalculator.redondear(montoAbonado + moraAbonada);
 
     return pago;
   }

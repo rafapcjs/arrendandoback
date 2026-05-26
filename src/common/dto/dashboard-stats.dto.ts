@@ -45,7 +45,7 @@ export class DashboardStatsDto {
   @ApiProperty({ description: 'Number of overdue payments' })
   pagosVencidos: number;
 
-  @ApiProperty({ description: 'Total amount collected this month' })
+  @ApiProperty({ description: 'Total amount collected this month (includes mora)' })
   montoRecaudadoMesActual: number;
 
   @ApiProperty({ description: 'Total amount pending collection' })

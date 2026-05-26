@@ -10,7 +10,7 @@ export class MonthlyIncomeReportDto {
   @ApiProperty({ description: 'Total esperado del mes' })
   totalEsperado: number;
 
-  @ApiProperty({ description: 'Total pagado del mes' })
+  @ApiProperty({ description: 'Total pagado del mes (incluye mora abonada)' })
   totalPagado: number;
 
   @ApiProperty({ description: 'Total pendiente del mes' })
@@ -33,7 +33,7 @@ export class AnnualIncomeReportDto {
   @ApiProperty({ description: 'Total esperado del año' })
   totalEsperado: number;
 
-  @ApiProperty({ description: 'Total pagado del año' })
+  @ApiProperty({ description: 'Total pagado del año (incluye mora abonada)' })
   totalPagado: number;
 
   @ApiProperty({ description: 'Total pendiente del año' })
@@ -59,10 +59,10 @@ export class ComparisonReportDto {
   @ApiProperty({ description: 'Total esperado en el período' })
   totalEsperado: number;
 
-  @ApiProperty({ description: 'Total pagado en el período' })
+  @ApiProperty({ description: 'Total pagado en el período (incluye mora abonada)' })
   totalPagado: number;
 
-  @ApiProperty({ description: 'Total parcial en el período' })
+  @ApiProperty({ description: 'Total parcial en el período (incluye mora abonada)' })
   totalParcial: number;
 
   @ApiProperty({ description: 'Total pendiente en el período' })

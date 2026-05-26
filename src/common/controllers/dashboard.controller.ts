@@ -31,4 +31,13 @@ export class DashboardController {
   async getAdminStats(): Promise<AdminDashboardStatsDto> {
     return this.dashboardService.getAdminStats();
   }
+
+  @Get('debug-mora')
+  @Roles(Role.ADMIN, Role.INMOBILIARIA)
+  @ApiOperation({ summary: '[DEBUG] Muestra montoAbonado y moraAbonada de pagos PAGADOS para diagnosticar el dashboard' })
+  async debugMora(@GetUser() user: any) {
+    return this.dashboardService.debugMora(
+      user.role !== Role.ADMIN ? user.inmobiliariaId : undefined,
+    );
+  }
 }

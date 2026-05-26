@@ -77,13 +77,16 @@ export class DashboardService {
       this.pagoRepository.count({ where: { ...inmoFilter, estado: PagoEstado.PENDIENTE } }),
       this.pagoRepository.count({ where: { ...inmoFilter, estado: PagoEstado.VENCIDO } }),
       (() => {
+        const start = new Date(currentYear, currentMonth - 1, 1);
+        const end = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
         const qb = this.pagoRepository
           .createQueryBuilder('pago')
-          .select('COALESCE(SUM(pago.montoAbonado), 0)', 'total')
-          .where('EXTRACT(MONTH FROM pago.createdAt) = :month', { month: currentMonth })
-          .andWhere('EXTRACT(YEAR FROM pago.createdAt) = :year', { year: currentYear });
+          .select('COALESCE(SUM(pago.montoAbonado), 0)', 'capital')
+          .addSelect('COALESCE(SUM(pago.moraAbonada), 0)', 'mora')
+          .where('pago.estado = :estado', { estado: PagoEstado.PAGADO })
+          .andWhere('pago.updatedAt BETWEEN :start AND :end', { start, end });
         if (!isAdmin) qb.andWhere('pago.inmobiliariaId = :inmoId', { inmoId });
-        return qb.getRawOne().then((r) => parseFloat(r.total) || 0);
+        return qb.getRawOne().then((r) => (parseFloat(r.capital) || 0) + (parseFloat(r.mora) || 0));
       })(),
       (() => {
         const qb = this.pagoRepository
@@ -117,6 +120,48 @@ export class DashboardService {
       montoRecaudadoMesActual,
       montoPendienteRecaudar,
       tasaOcupacion: Math.round(tasaOcupacion * 100) / 100,
+    };
+  }
+
+  async debugMora(inmobiliariaId?: string) {
+    const qb = this.pagoRepository
+      .createQueryBuilder('p')
+      .select('p.id', 'id')
+      .addSelect('p.estado', 'estado')
+      .addSelect('p.montoTotal', 'montoTotal')
+      .addSelect('p.montoAbonado', 'montoAbonado')
+      .addSelect('p.moraAbonada', 'moraAbonada')
+      .addSelect('p.updatedAt', 'updatedAt')
+      .where('p.estado = :estado', { estado: 'PAGADO' })
+      .orderBy('p.updatedAt', 'DESC')
+      .limit(10);
+
+    if (inmobiliariaId) {
+      qb.andWhere('p.inmobiliariaId = :inmobiliariaId', { inmobiliariaId });
+    }
+
+    const rows = await qb.getRawMany();
+
+    const totales = await this.pagoRepository
+      .createQueryBuilder('p')
+      .select('COALESCE(SUM(p.montoAbonado), 0)', 'totalCapital')
+      .addSelect('COALESCE(SUM(p.moraAbonada), 0)', 'totalMora')
+      .where('p.estado = :estado', { estado: 'PAGADO' })
+      .getRawOne();
+
+    return {
+      ultimosPagosPagados: rows.map((r) => ({
+        id: r.id,
+        montoTotal: parseFloat(r.montoTotal) || 0,
+        montoAbonado: parseFloat(r.montoAbonado) || 0,
+        moraAbonada: parseFloat(r.moraAbonada) || 0,
+        updatedAt: r.updatedAt,
+      })),
+      totalesGlobales: {
+        totalCapital: parseFloat(totales.totalCapital) || 0,
+        totalMora: parseFloat(totales.totalMora) || 0,
+        suma: (parseFloat(totales.totalCapital) || 0) + (parseFloat(totales.totalMora) || 0),
+      },
     };
   }
 
@@ -161,13 +206,18 @@ export class DashboardService {
       this.pagoRepository.count(),
       this.pagoRepository.count({ where: { estado: PagoEstado.PENDIENTE } }),
       this.pagoRepository.count({ where: { estado: PagoEstado.VENCIDO } }),
-      this.pagoRepository
-        .createQueryBuilder('p')
-        .select('COALESCE(SUM(p.montoAbonado), 0)', 'total')
-        .where('EXTRACT(MONTH FROM p.createdAt) = :m', { m: currentMonth })
-        .andWhere('EXTRACT(YEAR FROM p.createdAt) = :y', { y: currentYear })
-        .getRawOne()
-        .then((r) => parseFloat(r?.total) || 0),
+      (() => {
+        const start = new Date(currentYear, currentMonth - 1, 1);
+        const end = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+        return this.pagoRepository
+          .createQueryBuilder('p')
+          .select('COALESCE(SUM(p.montoAbonado), 0)', 'capital')
+          .addSelect('COALESCE(SUM(p.moraAbonada), 0)', 'mora')
+          .where('p.estado = :estado', { estado: PagoEstado.PAGADO })
+          .andWhere('p.updatedAt BETWEEN :start AND :end', { start, end })
+          .getRawOne()
+          .then((r) => (parseFloat(r?.capital) || 0) + (parseFloat(r?.mora) || 0));
+      })(),
       this.pagoRepository
         .createQueryBuilder('p')
         .select('COALESCE(SUM(p.montoTotal - p.montoAbonado), 0)', 'total')
@@ -178,7 +228,8 @@ export class DashboardService {
       this.pagoRepository
         .createQueryBuilder('p')
         .select('p.inmobiliariaId', 'inmobiliariaId')
-        .addSelect('COALESCE(SUM(p.montoAbonado), 0)', 'montoRecaudado')
+        .addSelect('COALESCE(SUM(p.montoAbonado), 0)', 'capital')
+        .addSelect('COALESCE(SUM(p.moraAbonada), 0)', 'mora')
         .addSelect('COUNT(DISTINCT p.contratoId)', 'totalContratos')
         .where('p.inmobiliariaId IS NOT NULL')
         .groupBy('p.inmobiliariaId')
@@ -224,7 +275,7 @@ export class DashboardService {
         id: r.inmobiliariaId,
         nombre: inmoMap.get(r.inmobiliariaId) || 'Desconocida',
         totalContratos: parseInt(r.totalContratos) || 0,
-        montoRecaudado: parseFloat(r.montoRecaudado) || 0,
+        montoRecaudado: (parseFloat(r.capital) || 0) + (parseFloat(r.mora) || 0),
       })),
     };
   }

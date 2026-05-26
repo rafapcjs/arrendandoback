@@ -117,6 +117,12 @@ export class Pago {
   })
   totalAPagar?: number;
 
+  @ApiProperty({
+    description: 'Total efectivamente recibido = montoAbonado + moraAbonada',
+    readOnly: true,
+  })
+  totalRecibido?: number;
+
   /**
    * Hook de TypeORM: recalcula los campos derivados cada vez que el registro
    * se carga, garantizando que siempre se entreguen valores actualizados.

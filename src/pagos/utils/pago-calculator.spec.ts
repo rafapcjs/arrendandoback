@@ -181,6 +181,30 @@ describe('PagoCalculator', () => {
       expect(() => PagoCalculator.aplicar(undefined as any)).not.toThrow();
     });
 
+    it('totalRecibido = montoAbonado + moraAbonada', () => {
+      const pago = buildPago({
+        montoTotal: 1_000_000,
+        montoAbonado: 1_000_000,
+        moraAbonada: 60_000,
+        fechaPagoEsperada: new Date('2026-05-20'),
+      });
+      PagoCalculator.aplicar(pago, new Date('2026-05-26'));
+
+      expect(pago.totalRecibido).toBe(1_060_000);
+    });
+
+    it('totalRecibido es solo montoAbonado cuando moraAbonada es 0', () => {
+      const pago = buildPago({
+        montoTotal: 1_000_000,
+        montoAbonado: 1_000_000,
+        moraAbonada: 0,
+        fechaPagoEsperada: new Date('2026-06-10'),
+      });
+      PagoCalculator.aplicar(pago, new Date('2026-05-26'));
+
+      expect(pago.totalRecibido).toBe(1_000_000);
+    });
+
     it('expone moraGenerada (bruta) y mora pendiente por separado', () => {
       const pago = buildPago({
         montoTotal: 1_000_000,

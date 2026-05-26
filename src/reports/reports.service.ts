@@ -44,11 +44,16 @@ export class ReportsService {
     );
     const totalPagado = pagos
       .filter((pago) => pago.estado === PagoEstado.PAGADO)
-      .reduce((sum, pago) => sum + Number(pago.montoTotal), 0);
+      .reduce(
+        (sum, pago) => sum + Number(pago.montoAbonado) + Number(pago.moraAbonada),
+        0,
+      );
 
-    const totalPendiente = totalEsperado - totalPagado;
+    const totalPendiente = pagos
+      .filter((pago) => pago.estado !== PagoEstado.PAGADO)
+      .reduce((sum, pago) => sum + Number(pago.montoTotal) - Number(pago.montoAbonado), 0);
     const porcentajePagado =
-      totalEsperado > 0 ? (totalPagado / totalEsperado) * 100 : 0;
+      totalEsperado > 0 ? Math.min((totalPagado / totalEsperado) * 100, 100) : 0;
 
     const numeroPagosEsperados = pagos.length;
     const numeroPagosCompletados = pagos.filter(
@@ -83,9 +88,12 @@ export class ReportsService {
       (sum, report) => sum + report.totalPagado,
       0,
     );
-    const totalPendiente = totalEsperado - totalPagado;
+    const totalPendiente = reporteMensual.reduce(
+      (sum, report) => sum + report.totalPendiente,
+      0,
+    );
     const porcentajePagado =
-      totalEsperado > 0 ? (totalPagado / totalEsperado) * 100 : 0;
+      totalEsperado > 0 ? Math.min((totalPagado / totalEsperado) * 100, 100) : 0;
 
     return {
       year,
@@ -128,12 +136,12 @@ export class ReportsService {
     };
 
     const totalPagado = pagosPorEstado[PagoEstado.PAGADO].reduce(
-      (sum, pago) => sum + Number(pago.montoTotal),
+      (sum, pago) => sum + Number(pago.montoAbonado) + Number(pago.moraAbonada),
       0,
     );
 
     const totalParcial = pagosPorEstado[PagoEstado.PARCIAL].reduce(
-      (sum, pago) => sum + Number(pago.montoAbonado),
+      (sum, pago) => sum + Number(pago.montoAbonado) + Number(pago.moraAbonada),
       0,
     );
 

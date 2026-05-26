@@ -374,8 +374,13 @@ export class PagosService {
       .select([
         'SUM(pago.montoTotal) as montoTotal',
         'SUM(pago.montoAbonado) as montoAbonado',
+        'SUM(pago.moraAbonada) as moraAbonada',
       ])
       .getRawOne();
+
+    const montoTotal = Number(montos.montoTotal) || 0;
+    const montoAbonado = Number(montos.montoAbonado) || 0;
+    const moraAbonada = Number(montos.moraAbonada) || 0;
 
     return {
       totalPagos,
@@ -386,10 +391,10 @@ export class PagosService {
         vencidos: pagosVencidos,
       },
       montos: {
-        total: Number(montos.montoTotal) || 0,
-        abonado: Number(montos.montoAbonado) || 0,
-        pendiente:
-          (Number(montos.montoTotal) || 0) - (Number(montos.montoAbonado) || 0),
+        total: montoTotal,
+        abonado: montoAbonado + moraAbonada,
+        pendiente: montoTotal - montoAbonado,
+        moraAbonada,
       },
     };
   }
