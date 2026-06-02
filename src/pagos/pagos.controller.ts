@@ -59,6 +59,22 @@ export class PagosController {
     return this.pagosService.findAll(user);
   }
 
+  @Get('estadisticas')
+  @ApiOperation({
+    summary: 'Estadísticas agregadas de pagos (recaudado y pendiente incluyen mora)',
+    description:
+      'Devuelve totales y conteos por estado. Los montos incluyen la mora ' +
+      'abonada en `abonado`, la mora generada en `total` y la mora pendiente ' +
+      'en `pendiente`. Opcionalmente filtrable por contrato.',
+  })
+  @ApiResponse({ status: 200 })
+  obtenerEstadisticas(
+    @Query('contratoId') contratoId: string | undefined,
+    @GetUser() user: any,
+  ) {
+    return this.pagosService.obtenerEstadisticasPagos(contratoId, user);
+  }
+
   @Get('deuda/inquilino/:cedula')
   @ApiOperation({
     summary: 'Consultar la deuda total de un inquilino por cédula',

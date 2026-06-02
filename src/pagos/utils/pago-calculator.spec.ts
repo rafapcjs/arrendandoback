@@ -246,6 +246,157 @@ describe('PagoCalculator', () => {
     });
   });
 
+  // ── sumarRecaudado ─────────────────────────────────────────────────────
+  describe('sumarRecaudado', () => {
+    it('suma montoAbonado + moraAbonada de cada pago', () => {
+      const pagos = [
+        buildPago({ montoAbonado: 1_000_000, moraAbonada: 60_000 }),
+        buildPago({ montoAbonado: 500_000, moraAbonada: 10_000 }),
+      ];
+      expect(PagoCalculator.sumarRecaudado(pagos)).toBe(1_570_000);
+    });
+
+    it('retorna 0 con lista vacía o nula', () => {
+      expect(PagoCalculator.sumarRecaudado([])).toBe(0);
+      expect(PagoCalculator.sumarRecaudado(null as any)).toBe(0);
+    });
+
+    it('trata moraAbonada nula/undefined como 0', () => {
+      const pagos = [buildPago({ montoAbonado: 800_000, moraAbonada: undefined as any })];
+      expect(PagoCalculator.sumarRecaudado(pagos)).toBe(800_000);
+    });
+  });
+
+  // ── sumarPendiente ─────────────────────────────────────────────────────
+  describe('sumarPendiente', () => {
+    it('suma saldo + mora pendiente de cada pago con retraso', () => {
+      const pagos = [
+        buildPago({
+          montoTotal: 1_000_000,
+          montoAbonado: 0,
+          fechaPagoEsperada: new Date('2026-05-20'),
+        }),
+        buildPago({
+          montoTotal: 500_000,
+          montoAbonado: 100_000,
+          fechaPagoEsperada: new Date('2026-05-22'),
+        }),
+      ];
+      // hoy=2026-05-26 → p1: saldo 1M + mora 60k = 1.06M
+      //                  p2: saldo 400k + mora (400k × 0.01 × 4 = 16k) = 416k
+      expect(PagoCalculator.sumarPendiente(pagos, new Date('2026-05-26'))).toBe(
+        1_476_000,
+      );
+    });
+
+    it('no suma mora cuando el pago no está vencido', () => {
+      const pagos = [
+        buildPago({
+          montoTotal: 1_000_000,
+          montoAbonado: 0,
+          fechaPagoEsperada: new Date('2026-06-15'),
+        }),
+      ];
+      expect(PagoCalculator.sumarPendiente(pagos, new Date('2026-05-26'))).toBe(
+        1_000_000,
+      );
+    });
+
+    it('retorna 0 con lista vacía', () => {
+      expect(PagoCalculator.sumarPendiente([])).toBe(0);
+    });
+
+    it('descuenta la mora ya abonada del pendiente', () => {
+      const pagos = [
+        buildPago({
+          montoTotal: 1_000_000,
+          montoAbonado: 0,
+          moraAbonada: 30_000,
+          fechaPagoEsperada: new Date('2026-05-20'),
+        }),
+      ];
+      // mora generada = 60k − 30k abonada = 30k pendiente; total = 1M + 30k
+      expect(PagoCalculator.sumarPendiente(pagos, new Date('2026-05-26'))).toBe(
+        1_030_000,
+      );
+    });
+  });
+
+  // ── sumarEsperado ──────────────────────────────────────────────────────
+  describe('sumarEsperado', () => {
+    it('suma montoTotal + moraGenerada (bruta) de cada pago', () => {
+      const pagos = [
+        buildPago({
+          montoTotal: 1_000_000,
+          montoAbonado: 0,
+          fechaPagoEsperada: new Date('2026-05-20'),
+        }),
+      ];
+      // mora generada = 1M × 0.01 × 6 = 60k → esperado = 1M + 60k
+      expect(PagoCalculator.sumarEsperado(pagos, new Date('2026-05-26'))).toBe(
+        1_060_000,
+      );
+    });
+
+    it('suma solo montoTotal cuando no hay mora generada', () => {
+      const pagos = [
+        buildPago({
+          montoTotal: 2_000_000,
+          montoAbonado: 0,
+          fechaPagoEsperada: new Date('2026-06-15'),
+        }),
+      ];
+      expect(PagoCalculator.sumarEsperado(pagos, new Date('2026-05-26'))).toBe(
+        2_000_000,
+      );
+    });
+
+    it('retorna 0 con lista vacía', () => {
+      expect(PagoCalculator.sumarEsperado([])).toBe(0);
+    });
+
+    it('para pagos ya saldados usa moraAbonada (no moraGenerada=0)', () => {
+      // Pago PAGADO: capital totalmente abonado, mora también abonada.
+      // saldoPendiente = 0 → moraGenerada = 0; pero moraAbonada conserva
+      // el historial de lo que se cobró por mora.
+      const pagos = [
+        buildPago({
+          montoTotal: 1_000_000,
+          montoAbonado: 1_000_000,
+          moraAbonada: 60_000,
+          estado: PagoEstado.PAGADO,
+          fechaPagoEsperada: new Date('2026-05-20'),
+        }),
+      ];
+      // esperado = montoTotal + max(moraGenerada=0, moraAbonada=60k) = 1.060.000
+      expect(PagoCalculator.sumarEsperado(pagos, new Date('2026-05-26'))).toBe(
+        1_060_000,
+      );
+    });
+
+    it('garantiza totalEsperado >= totalRecaudado para cualquier mezcla', () => {
+      const pagos = [
+        buildPago({
+          montoTotal: 1_000_000,
+          montoAbonado: 1_000_000,
+          moraAbonada: 60_000,
+          estado: PagoEstado.PAGADO,
+          fechaPagoEsperada: new Date('2026-05-20'),
+        }),
+        buildPago({
+          montoTotal: 500_000,
+          montoAbonado: 0,
+          moraAbonada: 0,
+          fechaPagoEsperada: new Date('2026-05-22'),
+        }),
+      ];
+      const hoy = new Date('2026-05-26');
+      const esperado = PagoCalculator.sumarEsperado(pagos, hoy);
+      const recaudado = PagoCalculator.sumarRecaudado(pagos);
+      expect(esperado).toBeGreaterThanOrEqual(recaudado);
+    });
+  });
+
   // ── aplicarLista ───────────────────────────────────────────────────────
   describe('aplicarLista', () => {
     it('aplica el cálculo a cada pago de la lista', () => {

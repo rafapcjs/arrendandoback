@@ -7,13 +7,13 @@ export class MonthlyIncomeReportDto {
   @ApiProperty({ description: 'Mes del reporte (1-12)' })
   month: number;
 
-  @ApiProperty({ description: 'Total esperado del mes' })
+  @ApiProperty({ description: 'Total esperado del mes (canon + mora generada)' })
   totalEsperado: number;
 
   @ApiProperty({ description: 'Total pagado del mes (incluye mora abonada)' })
   totalPagado: number;
 
-  @ApiProperty({ description: 'Total pendiente del mes' })
+  @ApiProperty({ description: 'Total pendiente del mes (saldo capital + mora pendiente)' })
   totalPendiente: number;
 
   @ApiProperty({ description: 'Porcentaje de pagos completados' })
@@ -30,13 +30,13 @@ export class AnnualIncomeReportDto {
   @ApiProperty({ description: 'Año del reporte' })
   year: number;
 
-  @ApiProperty({ description: 'Total esperado del año' })
+  @ApiProperty({ description: 'Total esperado del año (canon + mora generada)' })
   totalEsperado: number;
 
   @ApiProperty({ description: 'Total pagado del año (incluye mora abonada)' })
   totalPagado: number;
 
-  @ApiProperty({ description: 'Total pendiente del año' })
+  @ApiProperty({ description: 'Total pendiente del año (saldo capital + mora pendiente)' })
   totalPendiente: number;
 
   @ApiProperty({ description: 'Porcentaje de pagos completados' })
@@ -56,7 +56,7 @@ export class ComparisonReportDto {
   @ApiProperty({ description: 'Fecha de fin del período' })
   fechaFin: string;
 
-  @ApiProperty({ description: 'Total esperado en el período' })
+  @ApiProperty({ description: 'Total esperado en el período (canon + mora generada)' })
   totalEsperado: number;
 
   @ApiProperty({ description: 'Total pagado en el período (incluye mora abonada)' })
@@ -65,10 +65,10 @@ export class ComparisonReportDto {
   @ApiProperty({ description: 'Total parcial en el período (incluye mora abonada)' })
   totalParcial: number;
 
-  @ApiProperty({ description: 'Total pendiente en el período' })
+  @ApiProperty({ description: 'Total pendiente en el período (saldo capital + mora pendiente)' })
   totalPendiente: number;
 
-  @ApiProperty({ description: 'Total vencido en el período' })
+  @ApiProperty({ description: 'Total vencido en el período (saldo capital + mora pendiente)' })
   totalVencido: number;
 
   @ApiProperty({ description: 'Porcentaje pagado vs esperado' })

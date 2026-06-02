@@ -10,6 +10,15 @@ const mockUser = (role = Role.INMOBILIARIA, inmobiliariaId = 'inm-1') => ({ id: 
 const makePago = (estado: PagoEstado, monto = 1500000, abonado = 0, moraAbonada = 0): Pago =>
   ({ montoTotal: monto, montoAbonado: abonado, moraAbonada, estado, fechaPagoEsperada: new Date() } as Pago);
 
+const makePagoConVencimiento = (
+  estado: PagoEstado,
+  monto: number,
+  abonado: number,
+  moraAbonada: number,
+  fechaPagoEsperada: Date,
+): Pago =>
+  ({ montoTotal: monto, montoAbonado: abonado, moraAbonada, estado, fechaPagoEsperada } as Pago);
+
 const repoMock = () => ({ find: jest.fn() });
 
 describe('ReportsService', () => {
@@ -71,6 +80,20 @@ describe('ReportsService', () => {
       ]);
       const result = await service.getMonthlyIncomeReport(2026, 5, mockUser());
       expect(result.porcentajePagado).toBeLessThanOrEqual(100);
+    });
+
+    it('totalEsperado incluye mora generada para cuotas vencidas', async () => {
+      // Cuota vencida hace 10 días sin pagar → mora generada = 100k
+      const fechaVencida = new Date();
+      fechaVencida.setDate(fechaVencida.getDate() - 10);
+      pagoRepo.find.mockResolvedValue([
+        makePagoConVencimiento(PagoEstado.VENCIDO, 1_000_000, 0, 0, fechaVencida),
+      ]);
+      const result = await service.getMonthlyIncomeReport(2026, 5, mockUser());
+      // esperado = montoTotal (1M) + moraGenerada (100k) = 1.1M
+      expect(result.totalEsperado).toBe(1_100_000);
+      // pendiente = saldo (1M) + mora pendiente (100k) = 1.1M
+      expect(result.totalPendiente).toBe(1_100_000);
     });
 
     it('retorna ceros si no hay pagos en el mes', async () => {

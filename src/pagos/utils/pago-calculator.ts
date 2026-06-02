@@ -66,6 +66,52 @@ export class PagoCalculator {
   }
 
   /**
+   * Suma lo realmente recibido por capital y mora (montoAbonado + moraAbonada).
+   * Usa los campos persistidos: no requiere recalcular días de retraso.
+   */
+  static sumarRecaudado(pagos: Pago[]): number {
+    if (!pagos?.length) return 0;
+    const total = pagos.reduce(
+      (acc, p) => acc + (Number(p.montoAbonado) || 0) + (Number(p.moraAbonada) || 0),
+      0,
+    );
+    return PagoCalculator.redondear(total);
+  }
+
+  /**
+   * Suma de la deuda viva: saldoPendiente + mora pendiente para cada pago.
+   * Aplica el cálculo antes de reducir para garantizar que la mora esté fresca.
+   */
+  static sumarPendiente(pagos: Pago[], fechaReferencia: Date = new Date()): number {
+    if (!pagos?.length) return 0;
+    PagoCalculator.aplicarLista(pagos, fechaReferencia);
+    const total = pagos.reduce(
+      (acc, p) => acc + (Number(p.saldoPendiente) || 0) + (Number(p.mora) || 0),
+      0,
+    );
+    return PagoCalculator.redondear(total);
+  }
+
+  /**
+   * Suma de lo que debería cobrarse: montoTotal + componente de mora por pago.
+   * Para pagos vivos toma moraGenerada (bruta); para pagos ya saldados toma
+   * moraAbonada (la mora cobrada históricamente). Usar `max` cubre ambos casos
+   * y garantiza que totalEsperado ≥ totalPagado.
+   */
+  static sumarEsperado(pagos: Pago[], fechaReferencia: Date = new Date()): number {
+    if (!pagos?.length) return 0;
+    PagoCalculator.aplicarLista(pagos, fechaReferencia);
+    const total = pagos.reduce((acc, p) => {
+      const moraComponent = Math.max(
+        Number(p.moraGenerada) || 0,
+        Number(p.moraAbonada) || 0,
+      );
+      return acc + (Number(p.montoTotal) || 0) + moraComponent;
+    }, 0);
+    return PagoCalculator.redondear(total);
+  }
+
+  /**
    * Días enteros transcurridos entre la fecha de vencimiento y la fecha actual.
    * Devuelve 0 cuando la cuota aún no está vencida.
    */

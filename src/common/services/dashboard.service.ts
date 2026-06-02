@@ -8,7 +8,9 @@ import {
   Contrato,
   ContratoEstado,
 } from '../../contratos/entities/contrato.entity';
+import { In } from 'typeorm';
 import { Pago, PagoEstado } from '../../pagos/entities/pago.entity';
+import { PagoCalculator } from '../../pagos/utils/pago-calculator';
 import { Inmobiliaria, InmobiliariaEstado } from '../../inmobiliarias/entities/inmobiliaria.entity';
 import { DashboardStatsDto } from '../dto/dashboard-stats.dto';
 import { AdminDashboardStatsDto } from '../dto/admin-dashboard-stats.dto';
@@ -88,13 +90,13 @@ export class DashboardService {
         if (!isAdmin) qb.andWhere('pago.inmobiliariaId = :inmoId', { inmoId });
         return qb.getRawOne().then((r) => (parseFloat(r.capital) || 0) + (parseFloat(r.mora) || 0));
       })(),
-      (() => {
-        const qb = this.pagoRepository
-          .createQueryBuilder('pago')
-          .select('COALESCE(SUM(pago.montoTotal - pago.montoAbonado), 0)', 'total')
-          .where('pago.estado IN (:...estados)', { estados: [PagoEstado.PENDIENTE, PagoEstado.PARCIAL] });
-        if (!isAdmin) qb.andWhere('pago.inmobiliariaId = :inmoId', { inmoId });
-        return qb.getRawOne().then((r) => parseFloat(r.total) || 0);
+      (async () => {
+        const where: any = {
+          estado: In([PagoEstado.PENDIENTE, PagoEstado.PARCIAL, PagoEstado.VENCIDO]),
+        };
+        if (!isAdmin) where.inmobiliariaId = inmoId;
+        const pagos = await this.pagoRepository.find({ where });
+        return PagoCalculator.sumarPendiente(pagos);
       })(),
     ]);
 
@@ -218,12 +220,14 @@ export class DashboardService {
           .getRawOne()
           .then((r) => (parseFloat(r?.capital) || 0) + (parseFloat(r?.mora) || 0));
       })(),
-      this.pagoRepository
-        .createQueryBuilder('p')
-        .select('COALESCE(SUM(p.montoTotal - p.montoAbonado), 0)', 'total')
-        .where('p.estado IN (:...estados)', { estados: [PagoEstado.PENDIENTE, PagoEstado.PARCIAL] })
-        .getRawOne()
-        .then((r) => parseFloat(r?.total) || 0),
+      (async () => {
+        const pagos = await this.pagoRepository.find({
+          where: {
+            estado: In([PagoEstado.PENDIENTE, PagoEstado.PARCIAL, PagoEstado.VENCIDO]),
+          },
+        });
+        return PagoCalculator.sumarPendiente(pagos);
+      })(),
       // Agrupar pagos por inmobiliaria para calcular top 5
       this.pagoRepository
         .createQueryBuilder('p')

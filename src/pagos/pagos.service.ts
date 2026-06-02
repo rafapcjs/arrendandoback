@@ -337,50 +337,24 @@ export class PagosService {
     return await query.orderBy('pago.fechaPagoEsperada', 'DESC').getMany();
   }
 
-  async obtenerEstadisticasPagos(contratoId?: string) {
-    const query = this.pagoRepository.createQueryBuilder('pago');
-
-    if (contratoId) {
-      query.where('pago.contratoId = :contratoId', { contratoId });
+  async obtenerEstadisticasPagos(contratoId?: string, user?: RequestUser) {
+    const where: any = contratoId ? { contratoId } : {};
+    if (user && user.role !== Role.ADMIN) {
+      where.inmobiliariaId = user.inmobiliariaId || 'no-access';
     }
+    const pagos = await this.pagoRepository.find({ where });
 
-    const [
-      totalPagos,
-      pagosPendientes,
-      pagosParciales,
-      pagosPagados,
-      pagosVencidos,
-    ] = await Promise.all([
-      query.getCount(),
-      query
-        .clone()
-        .where('pago.estado = :estado', { estado: PagoEstado.PENDIENTE })
-        .getCount(),
-      query
-        .clone()
-        .where('pago.estado = :estado', { estado: PagoEstado.PARCIAL })
-        .getCount(),
-      query
-        .clone()
-        .where('pago.estado = :estado', { estado: PagoEstado.PAGADO })
-        .getCount(),
-      query
-        .clone()
-        .where('pago.estado = :estado', { estado: PagoEstado.VENCIDO })
-        .getCount(),
-    ]);
+    const totalPagos = pagos.length;
+    const pagosPendientes = pagos.filter((p) => p.estado === PagoEstado.PENDIENTE).length;
+    const pagosParciales = pagos.filter((p) => p.estado === PagoEstado.PARCIAL).length;
+    const pagosPagados = pagos.filter((p) => p.estado === PagoEstado.PAGADO).length;
+    const pagosVencidos = pagos.filter((p) => p.estado === PagoEstado.VENCIDO).length;
 
-    const montos = await query
-      .select([
-        'SUM(pago.montoTotal) as montoTotal',
-        'SUM(pago.montoAbonado) as montoAbonado',
-        'SUM(pago.moraAbonada) as moraAbonada',
-      ])
-      .getRawOne();
-
-    const montoTotal = Number(montos.montoTotal) || 0;
-    const montoAbonado = Number(montos.montoAbonado) || 0;
-    const moraAbonada = Number(montos.moraAbonada) || 0;
+    const pagosAdeudados = pagos.filter((p) => p.estado !== PagoEstado.PAGADO);
+    const moraAbonada = pagos.reduce(
+      (acc, p) => acc + (Number(p.moraAbonada) || 0),
+      0,
+    );
 
     return {
       totalPagos,
@@ -391,9 +365,9 @@ export class PagosService {
         vencidos: pagosVencidos,
       },
       montos: {
-        total: montoTotal,
-        abonado: montoAbonado + moraAbonada,
-        pendiente: montoTotal - montoAbonado,
+        total: PagoCalculator.sumarEsperado(pagos),
+        abonado: PagoCalculator.sumarRecaudado(pagos),
+        pendiente: PagoCalculator.sumarPendiente(pagosAdeudados),
         moraAbonada,
       },
     };

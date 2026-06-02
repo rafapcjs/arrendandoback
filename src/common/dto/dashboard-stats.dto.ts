@@ -48,7 +48,10 @@ export class DashboardStatsDto {
   @ApiProperty({ description: 'Total amount collected this month (includes mora)' })
   montoRecaudadoMesActual: number;
 
-  @ApiProperty({ description: 'Total amount pending collection' })
+  @ApiProperty({
+    description:
+      'Total amount pending collection (includes mora pendiente and VENCIDO state)',
+  })
   montoPendienteRecaudar: number;
 
   @ApiProperty({ description: 'Monthly occupancy rate percentage' })

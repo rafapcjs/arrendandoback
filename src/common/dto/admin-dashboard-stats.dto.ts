@@ -24,8 +24,13 @@ export class PlataformaStatsDto {
   @ApiProperty() totalPagos: number;
   @ApiProperty() pagosPendientes: number;
   @ApiProperty() pagosVencidos: number;
-  @ApiProperty() montoRecaudadoMesActual: number;
-  @ApiProperty() montoPendienteRecaudar: number;
+  @ApiProperty({ description: 'Monto recaudado del mes actual (incluye mora)' })
+  montoRecaudadoMesActual: number;
+  @ApiProperty({
+    description:
+      'Monto pendiente por recaudar (incluye mora pendiente y estado VENCIDO)',
+  })
+  montoPendienteRecaudar: number;
 }
 
 export class TopInmobiliariaDto {

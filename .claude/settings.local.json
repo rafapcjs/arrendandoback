@@ -36,7 +36,13 @@
       "Bash(npm test *)",
       "Bash(chmod +x llenar_datos.sh)",
       "Bash(bash llenar_datos.sh)",
-      "Bash(python3 -m json.tool)"
+      "Bash(python3 -m json.tool)",
+      "Bash(Get-ChildItem *)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000 :3001 :4000 :5000 :8080\")",
+      "Bash(findstr LISTENING)",
+      "PowerShell($body = @{ email = 'gambin1@gmail.com'; password = 'SNwAI8e4' } | ConvertTo-Json; $login = Invoke-RestMethod -Uri 'http://localhost:3018/auth/login' -Method Post -ContentType 'application/json' -Body $body; $headers = @{ Authorization = \"Bearer $\\($login.access_token\\)\" }; Write-Output '--- /reports/income/monthly?year=2026&month=5 ---'; \\(Invoke-RestMethod -Uri 'http://localhost:3018/reports/income/monthly?year=2026&month=5' -Headers $headers\\) | ConvertTo-Json -Depth 5; Write-Output ''; Write-Output '--- /reports/income/comparison anual ---'; \\(Invoke-RestMethod -Uri 'http://localhost:3018/reports/income/comparison?fechaInicio=2026-01-01&fechaFin=2026-12-31' -Headers $headers\\) | ConvertTo-Json -Depth 5)",
+      "PowerShell($doc = Invoke-RestMethod -Uri 'http://localhost:3018/api/docs-json'; $doc.components.schemas.DashboardStatsDto.properties.montoPendienteRecaudar.description; Write-Output '---'; $doc.components.schemas.MonthlyIncomeReportDto.properties.totalEsperado.description)"
     ],
     "deny": [],
     "ask": []

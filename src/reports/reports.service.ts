@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Pago, PagoEstado } from '../pagos/entities/pago.entity';
+import { PagoCalculator } from '../pagos/utils/pago-calculator';
 import {
   MonthlyIncomeReportDto,
   AnnualIncomeReportDto,
@@ -38,20 +39,13 @@ export class ReportsService {
       where: this.buildWhere({ fechaPagoEsperada: Between(startDate, endDate) }, user),
     });
 
-    const totalEsperado = pagos.reduce(
-      (sum, pago) => sum + Number(pago.montoTotal),
-      0,
+    const totalEsperado = PagoCalculator.sumarEsperado(pagos);
+    const totalPagado = PagoCalculator.sumarRecaudado(
+      pagos.filter((pago) => pago.estado === PagoEstado.PAGADO),
     );
-    const totalPagado = pagos
-      .filter((pago) => pago.estado === PagoEstado.PAGADO)
-      .reduce(
-        (sum, pago) => sum + Number(pago.montoAbonado) + Number(pago.moraAbonada),
-        0,
-      );
-
-    const totalPendiente = pagos
-      .filter((pago) => pago.estado !== PagoEstado.PAGADO)
-      .reduce((sum, pago) => sum + Number(pago.montoTotal) - Number(pago.montoAbonado), 0);
+    const totalPendiente = PagoCalculator.sumarPendiente(
+      pagos.filter((pago) => pago.estado !== PagoEstado.PAGADO),
+    );
     const porcentajePagado =
       totalEsperado > 0 ? Math.min((totalPagado / totalEsperado) * 100, 100) : 0;
 
@@ -117,10 +111,7 @@ export class ReportsService {
       where: this.buildWhere({ fechaPagoEsperada: Between(startDate, endDate) }, user),
     });
 
-    const totalEsperado = pagos.reduce(
-      (sum, pago) => sum + Number(pago.montoTotal),
-      0,
-    );
+    const totalEsperado = PagoCalculator.sumarEsperado(pagos);
 
     const pagosPorEstado = {
       [PagoEstado.PAGADO]: pagos.filter((p) => p.estado === PagoEstado.PAGADO),
@@ -135,24 +126,17 @@ export class ReportsService {
       ),
     };
 
-    const totalPagado = pagosPorEstado[PagoEstado.PAGADO].reduce(
-      (sum, pago) => sum + Number(pago.montoAbonado) + Number(pago.moraAbonada),
-      0,
+    const totalPagado = PagoCalculator.sumarRecaudado(
+      pagosPorEstado[PagoEstado.PAGADO],
     );
-
-    const totalParcial = pagosPorEstado[PagoEstado.PARCIAL].reduce(
-      (sum, pago) => sum + Number(pago.montoAbonado) + Number(pago.moraAbonada),
-      0,
+    const totalParcial = PagoCalculator.sumarRecaudado(
+      pagosPorEstado[PagoEstado.PARCIAL],
     );
-
-    const totalPendiente = pagosPorEstado[PagoEstado.PENDIENTE].reduce(
-      (sum, pago) => sum + Number(pago.montoTotal),
-      0,
+    const totalPendiente = PagoCalculator.sumarPendiente(
+      pagosPorEstado[PagoEstado.PENDIENTE],
     );
-
-    const totalVencido = pagosPorEstado[PagoEstado.VENCIDO].reduce(
-      (sum, pago) => sum + Number(pago.montoTotal),
-      0,
+    const totalVencido = PagoCalculator.sumarPendiente(
+      pagosPorEstado[PagoEstado.VENCIDO],
     );
 
     const porcentajePagadoVsEsperado =
